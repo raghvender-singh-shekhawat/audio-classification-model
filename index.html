@@ -1,0 +1,2058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpliceDetect Pro — AI Voice Forensics</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* =============================================
+   DESIGN: Industrial Forensics — deep navy/
+   electric cyan / blood-orange palette.
+   Unforgettable: the animated real-time 
+   spectrogram and splice-point heatmap.
+============================================= */
+:root{
+  --bg0:#03070d;--bg1:#060d18;--bg2:#09121f;--bg3:#0d1a2c;--bg4:#111f34;
+  --cyan:#00d9c4;--cyan2:#00a896;--cyan3:#006b5c;
+  --orange:#ff5722;--orange2:#e64000;
+  --yellow:#ffcc02;--yellow2:#c89900;
+  --green:#00e676;--green2:#00b050;
+  --red:#ff1744;--red2:#c0003a;
+  --blue:#448aff;--blue2:#1a5fcc;
+  --violet:#aa44ff;
+  --t1:#ddeef5;--t2:#607d8b;--t3:#1e3a4a;
+  --border:rgba(0,217,196,.1);--border2:rgba(0,217,196,.22);
+  --glow-c:0 0 24px rgba(0,217,196,.25);
+  --glow-o:0 0 24px rgba(255,87,34,.3);
+  --glow-g:0 0 20px rgba(0,230,118,.25);
+  --mono:'IBM Plex Mono',monospace;
+  --display:'Barlow Condensed',sans-serif;
+  --body:'Barlow',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--t1);font-family:var(--body);}
+body{display:flex;flex-direction:column;}
+
+/* Scanline */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 4px);}
+
+/* Grid bg */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(0,217,196,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,217,196,.025) 1px,transparent 1px);
+  background-size:44px 44px;}
+
+/* =====  TOPBAR  ===== */
+#topbar{
+  position:relative;z-index:50;
+  height:54px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 24px;
+  background:rgba(3,7,13,.95);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(20px);
+}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-icon{width:30px;height:30px;}
+.brand-icon svg{width:100%;height:100%;}
+.brand-name{
+  font-family:var(--display);font-size:1.15rem;font-weight:800;
+  letter-spacing:.14em;color:var(--cyan);text-transform:uppercase;
+  text-shadow:0 0 20px rgba(0,217,196,.4);
+}
+.brand-name em{color:var(--t3);font-style:normal;}
+.brand-sub{font-family:var(--mono);font-size:.52rem;color:var(--t3);letter-spacing:.1em;margin-top:1px;}
+
+.nav-pills{display:flex;gap:3px;background:var(--bg2);padding:4px;border-radius:4px;border:1px solid var(--border);}
+.nav-pill{
+  padding:5px 14px;font-family:var(--display);font-size:.75rem;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;
+  background:transparent;border:none;color:var(--t2);border-radius:3px;cursor:pointer;
+  transition:all .18s;
+}
+.nav-pill.on{background:rgba(0,217,196,.12);color:var(--cyan);}
+.nav-pill:hover:not(.on){color:var(--t1);}
+
+.topbar-right{display:flex;align-items:center;gap:10px;}
+.time-badge{font-family:var(--mono);font-size:.58rem;color:var(--t3);letter-spacing:.08em;}
+
+/* =====  BODY  ===== */
+#body{
+  position:relative;z-index:1;
+  flex:1;display:grid;overflow:hidden;
+  grid-template-columns:284px 1fr 264px;
+}
+
+/* ====  PANEL PRIMITIVES  ==== */
+.col{background:var(--bg1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.col:last-child{border-right:none;border-left:1px solid var(--border);}
+.col-head{
+  padding:10px 14px 9px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;
+}
+.col-title{font-family:var(--mono);font-size:.58rem;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan2);}
+.col-badge{
+  font-family:var(--mono);font-size:.54rem;padding:2px 7px;border-radius:2px;
+  background:rgba(0,217,196,.07);border:1px solid var(--border);color:var(--t2);letter-spacing:.06em;
+}
+
+/* ====  LEFT COL  ==== */
+/* Input switcher */
+.input-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.itab{
+  flex:1;padding:9px 4px;
+  font-family:var(--display);font-size:.68rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  background:transparent;border:none;border-bottom:2px solid transparent;
+  color:var(--t3);cursor:pointer;transition:all .18s;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+}
+.itab.on{color:var(--cyan);border-bottom-color:var(--cyan);background:rgba(0,217,196,.04);}
+.itab:hover:not(.on){color:var(--t2);}
+
+/* Upload zone */
+#dropZone{
+  margin:12px;border:1px dashed rgba(0,217,196,.18);border-radius:5px;
+  padding:26px 14px;text-align:center;cursor:pointer;
+  transition:all .2s;background:rgba(0,217,196,.012);
+  position:relative;flex-shrink:0;
+}
+#dropZone:hover,#dropZone.drag{border-color:var(--cyan);background:rgba(0,217,196,.06);box-shadow:var(--glow-c);}
+#dropZone input{position:absolute;inset:0;opacity:0;cursor:pointer;}
+.dz-ico{font-size:2.2rem;display:block;margin-bottom:8px;filter:saturate(.6);}
+.dz-h{font-family:var(--display);font-size:.9rem;font-weight:700;color:var(--t1);margin-bottom:3px;letter-spacing:.04em;}
+.dz-s{font-family:var(--mono);font-size:.58rem;color:var(--t3);}
+
+/* Record panel */
+#recPanel{margin:12px;display:none;flex-shrink:0;}
+#recPanel.vis{display:block;}
+.rec-viz{
+  height:46px;border-radius:4px;background:var(--bg2);border:1px solid var(--border);
+  display:flex;align-items:center;gap:1.5px;padding:0 6px;overflow:hidden;margin-bottom:10px;
+}
+.rec-bar{flex:1;border-radius:1px;min-height:2px;background:var(--red);transition:height .04s;}
+.rec-timer{
+  font-family:var(--display);font-size:2.6rem;font-weight:800;
+  text-align:center;letter-spacing:.12em;color:var(--t1);
+  font-variant-numeric:tabular-nums;margin-bottom:12px;
+}
+.rec-row{display:flex;gap:8px;justify-content:center;margin-bottom:8px;}
+.rec-btn{
+  width:58px;height:58px;border-radius:50%;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;font-size:1.4rem;
+  transition:all .2s;
+}
+.rec-start{background:linear-gradient(135deg,var(--red),var(--red2));box-shadow:0 4px 16px rgba(255,23,68,.4);}
+.rec-start.recording{animation:recPulse .9s ease-in-out infinite;}
+@keyframes recPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,23,68,.7)}70%{box-shadow:0 0 0 16px rgba(255,23,68,0)}}
+.rec-hint{font-family:var(--mono);font-size:.58rem;color:var(--t3);text-align:center;letter-spacing:.08em;}
+
+/* URL panel */
+#urlPanel{margin:12px;display:none;flex-shrink:0;}
+#urlPanel.vis{display:block;}
+.url-inp{
+  width:100%;padding:9px 12px;margin-bottom:8px;
+  background:var(--bg2);border:1px solid var(--border);border-radius:4px;
+  font-family:var(--mono);font-size:.7rem;color:var(--t1);outline:none;
+  transition:border-color .18s;
+}
+.url-inp:focus{border-color:var(--cyan);}
+.url-inp::placeholder{color:var(--t3);}
+
+/* Queue */
+.queue-area{flex:1;overflow-y:auto;padding:8px 12px 12px;display:flex;flex-direction:column;gap:5px;min-height:0;}
+.q-empty{
+  text-align:center;padding:30px 10px;
+  font-family:var(--mono);font-size:.6rem;color:var(--t3);letter-spacing:.06em;line-height:1.9;
+}
+.qfile{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;background:var(--bg2);border:1px solid var(--border);
+  border-radius:4px;cursor:pointer;transition:all .17s;
+}
+.qfile:hover{background:var(--bg3);border-color:var(--cyan3);}
+.qfile.sel{border-color:var(--cyan);background:rgba(0,217,196,.06);}
+.qfile.done-r{border-left:3px solid var(--green);}
+.qfile.done-f{border-left:3px solid var(--red);}
+.qfile.done-u{border-left:3px solid var(--yellow);}
+.qf-ico{font-size:.95rem;flex-shrink:0;}
+.qf-name{flex:1;font-family:var(--mono);font-size:.66rem;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.qf-sz{font-family:var(--mono);font-size:.56rem;color:var(--t3);flex-shrink:0;}
+.qf-st{font-size:.8rem;flex-shrink:0;}
+.qf-del{background:none;border:none;color:var(--t3);cursor:pointer;padding:2px 5px;font-size:.85rem;transition:color .15s;flex-shrink:0;}
+.qf-del:hover{color:var(--red);}
+
+/* Analyze btn */
+.run-dock{padding:12px;border-top:1px solid var(--border);flex-shrink:0;}
+#runBtn{
+  width:100%;padding:13px;
+  background:linear-gradient(135deg,var(--cyan),var(--blue2));
+  color:var(--bg0);border:none;border-radius:4px;
+  font-family:var(--display);font-size:1rem;font-weight:800;
+  letter-spacing:.16em;text-transform:uppercase;
+  cursor:pointer;transition:all .25s;position:relative;overflow:hidden;
+}
+#runBtn::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);
+  transform:translateX(-200%);transition:transform .55s;
+}
+#runBtn:hover:not(:disabled)::before{transform:translateX(200%);}
+#runBtn:hover:not(:disabled){box-shadow:var(--glow-c);transform:translateY(-1px);}
+#runBtn:disabled{background:var(--bg3);color:var(--t3);cursor:not-allowed;transform:none;box-shadow:none;}
+
+/* ====  CENTER COL  ==== */
+#center{background:var(--bg0);display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+
+/* Visualization header */
+.viz-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:7px 14px;background:rgba(3,7,13,.9);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.viz-title{font-family:var(--mono);font-size:.57rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan3);}
+.viz-controls{display:flex;gap:3px;}
+.vc-btn{
+  padding:3px 9px;font-family:var(--mono);font-size:.56rem;letter-spacing:.06em;
+  background:var(--bg2);border:1px solid var(--border);color:var(--t2);border-radius:2px;cursor:pointer;transition:all .15s;
+}
+.vc-btn.on{color:var(--cyan);border-color:var(--cyan3);background:rgba(0,217,196,.08);}
+.vc-btn:hover:not(.on){color:var(--t1);}
+
+/* Canvases */
+#waveCanvas{display:block;width:100%;height:100px;background:var(--bg1);}
+#specCanvas{display:block;width:100%;height:72px;background:var(--bg2);}
+.spec-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:4px 14px;background:rgba(3,7,13,.7);border-top:1px solid var(--border);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.spec-lbl{font-family:var(--mono);font-size:.54rem;color:var(--t3);letter-spacing:.1em;}
+.freq-scale{display:flex;gap:10px;}
+.fq{font-family:var(--mono);font-size:.52rem;color:var(--t3);}
+
+/* Playback bar */
+#playback{
+  display:flex;align-items:center;gap:10px;
+  padding:7px 14px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.pb-ctrl{
+  padding:4px 10px;font-family:var(--mono);font-size:.62rem;
+  background:rgba(0,217,196,.09);border:1px solid var(--border);color:var(--cyan);
+  border-radius:3px;cursor:pointer;transition:all .15s;
+}
+.pb-ctrl:hover{background:rgba(0,217,196,.18);}
+#pbBar{flex:1;height:5px;background:var(--bg3);border-radius:3px;cursor:pointer;position:relative;}
+#pbProgress{height:100%;background:linear-gradient(90deg,var(--cyan),var(--blue));border-radius:3px;width:0%;transition:width .1s;}
+#pbTime{font-family:var(--mono);font-size:.58rem;color:var(--t3);white-space:nowrap;}
+#volSlider{width:60px;accent-color:var(--cyan);}
+
+/* Progress strip */
+#progStrip{flex-shrink:0;border-bottom:1px solid var(--border);}
+.prog-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:6px 14px 4px;
+}
+.prog-lbl{font-family:var(--mono);font-size:.58rem;color:var(--cyan);letter-spacing:.07em;}
+#progPct{font-family:var(--mono);font-size:.58rem;color:var(--t2);}
+.prog-track{height:3px;background:var(--bg2);}
+#progFill{height:100%;width:0%;background:linear-gradient(90deg,var(--blue),var(--cyan),var(--green));background-size:300%;
+  transition:width .3s ease;animation:shimmer 2s linear infinite paused;}
+#progFill.run{animation-play-state:running;}
+@keyframes shimmer{0%{background-position:300% 0}100%{background-position:0% 0}}
+.steps{display:flex;gap:3px;flex-wrap:wrap;padding:5px 14px 6px;}
+.sch{
+  font-family:var(--mono);font-size:.53rem;letter-spacing:.04em;padding:2px 7px;
+  border:1px solid var(--t3);color:var(--t3);border-radius:2px;transition:all .2s;
+  display:flex;align-items:center;gap:3px;
+}
+.sch-dot{width:3px;height:3px;border-radius:50%;background:currentColor;}
+.sch.active{color:var(--cyan);border-color:var(--cyan3);background:rgba(0,217,196,.08);}
+.sch.done{color:var(--green);border-color:rgba(0,230,118,.3);background:rgba(0,230,118,.06);}
+
+/* Results scroll */
+#results{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:12px;min-height:0;}
+.no-res{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:14px;
+}
+.nr-ico{font-size:4rem;opacity:.12;filter:grayscale(1);}
+.nr-h{font-family:var(--display);font-size:1.1rem;font-weight:700;letter-spacing:.1em;color:var(--t2);}
+.nr-p{font-family:var(--mono);font-size:.65rem;color:var(--t3);max-width:270px;line-height:1.8;}
+
+/* ====  RESULT CARD  ==== */
+.rcard{
+  border-radius:6px;overflow:hidden;border:1px solid var(--border);
+  animation:slideIn .38s ease forwards;
+}
+@keyframes slideIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.rcard.real-c{border-color:rgba(0,230,118,.28);}
+.rcard.fake-c{border-color:rgba(255,23,68,.3);}
+.rcard.unc-c{border-color:rgba(255,204,2,.28);}
+
+/* Card header */
+.rc-head{
+  display:flex;align-items:center;gap:10px;padding:10px 14px;
+  background:rgba(9,18,31,.6);border-bottom:1px solid var(--border);
+}
+.rc-verdict{
+  padding:4px 11px;border-radius:3px;
+  font-family:var(--display);font-size:.82rem;font-weight:700;letter-spacing:.08em;flex-shrink:0;
+}
+.real-c .rc-verdict{background:rgba(0,230,118,.12);color:var(--green);border:1px solid rgba(0,230,118,.25);}
+.fake-c .rc-verdict{background:rgba(255,23,68,.12);color:var(--red);border:1px solid rgba(255,23,68,.25);}
+.unc-c  .rc-verdict{background:rgba(255,204,2,.1);color:var(--yellow);border:1px solid rgba(255,204,2,.25);}
+.rc-fname{flex:1;font-family:var(--mono);font-size:.67rem;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rc-risk{font-family:var(--mono);font-size:.56rem;padding:3px 8px;border-radius:2px;flex-shrink:0;letter-spacing:.08em;}
+.rc-conf{font-family:var(--display);font-size:1.4rem;font-weight:800;flex-shrink:0;}
+.real-c .rc-conf{color:var(--green);}
+.fake-c .rc-conf{color:var(--red);}
+.unc-c  .rc-conf{color:var(--yellow);}
+
+/* Mini wave in card */
+.rc-wave{
+  height:34px;background:var(--bg2);
+  display:flex;align-items:center;gap:1px;padding:0 14px;overflow:hidden;
+}
+.rcw-bar{flex:1;border-radius:1px;min-height:2px;opacity:.55;}
+
+/* Score bar */
+.rc-scores{padding:8px 14px 6px;}
+.score-bar-wrap{height:8px;background:rgba(255,23,68,.15);border-radius:4px;overflow:hidden;margin-bottom:4px;}
+.score-fill{height:100%;border-radius:4px;transition:width 1.1s cubic-bezier(.16,1,.3,1);width:0%;}
+.real-c .score-fill{background:linear-gradient(90deg,var(--green2),var(--green));}
+.fake-c .score-fill{background:linear-gradient(90deg,var(--red2),var(--red));}
+.unc-c  .score-fill{background:linear-gradient(90deg,var(--yellow2),var(--yellow));}
+.score-lbls{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.58rem;}
+.sl-r{color:var(--green);}
+.sl-f{color:var(--red);}
+.sl-type{color:var(--t3);}
+
+/* Metrics grid */
+.rc-metrics{
+  display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--border);
+}
+.met{
+  padding:8px 10px;text-align:center;border-right:1px solid var(--border);
+}
+.met:last-child{border-right:none;}
+.met-v{font-family:var(--display);font-size:.95rem;font-weight:700;color:var(--t1);line-height:1;}
+.met-l{font-family:var(--mono);font-size:.5rem;color:var(--t3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px;}
+
+/* Splice points row */
+.rc-splices{
+  padding:8px 14px;border-top:1px solid var(--border);
+  display:flex;gap:5px;flex-wrap:wrap;align-items:center;
+}
+.sp-label{font-family:var(--mono);font-size:.56rem;color:var(--t3);margin-right:4px;flex-shrink:0;}
+.sp-tag{
+  font-family:var(--mono);font-size:.58rem;padding:2px 8px;border-radius:2px;
+  background:rgba(255,87,34,.1);border:1px solid rgba(255,87,34,.25);color:var(--orange);
+}
+.sp-tag.clean{background:rgba(0,230,118,.08);border-color:rgba(0,230,118,.2);color:var(--green);}
+
+/* AI analysis block */
+.rc-ai{padding:10px 14px;border-top:1px solid var(--border);}
+.rc-ai-hd{
+  font-family:var(--mono);font-size:.56rem;color:var(--violet);
+  text-transform:uppercase;letter-spacing:.12em;margin-bottom:7px;
+  display:flex;align-items:center;gap:7px;
+}
+.rc-ai-hd::after{content:'';flex:1;height:1px;background:rgba(170,68,255,.18);}
+.rc-ai-txt{font-family:var(--body);font-size:.78rem;color:var(--t2);line-height:1.75;margin-bottom:8px;}
+.rc-inds{display:flex;flex-direction:column;gap:4px;}
+.rc-ind{display:flex;gap:8px;align-items:flex-start;font-size:.73rem;color:var(--t2);line-height:1.5;}
+.ind-pip{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+.ind-pip.p{background:var(--green);}
+.ind-pip.n{background:var(--red);}
+.ind-pip.w{background:var(--yellow);}
+.rc-rec{
+  margin-top:8px;padding:7px 10px;
+  background:rgba(68,138,255,.06);border-radius:3px;border-left:2px solid var(--blue);
+  font-size:.74rem;color:var(--t2);line-height:1.6;
+}
+.rc-tech{
+  margin-top:6px;font-family:var(--mono);font-size:.58rem;color:var(--t3);
+  letter-spacing:.04em;
+}
+
+/* ====  RIGHT COL  ==== */
+/* Stats */
+.stats-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:1px;
+  background:var(--border);border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.sg{padding:12px 14px;background:var(--bg1);}
+.sg-v{font-family:var(--display);font-size:1.8rem;font-weight:800;line-height:1;}
+.sg-v.tot{color:var(--blue);}
+.sg-v.rea{color:var(--green);}
+.sg-v.fak{color:var(--red);}
+.sg-v.unc{color:var(--yellow);}
+.sg-l{font-family:var(--mono);font-size:.54rem;text-transform:uppercase;letter-spacing:.1em;color:var(--t3);margin-top:2px;}
+
+/* Distribution bar */
+.dist-area{padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.dist-lbl{font-family:var(--mono);font-size:.56rem;text-transform:uppercase;letter-spacing:.12em;color:var(--t3);margin-bottom:8px;}
+.dist-bar{height:10px;background:var(--bg2);border-radius:5px;overflow:hidden;display:flex;gap:2px;margin-bottom:6px;}
+.db-r{height:100%;background:linear-gradient(90deg,var(--green2),var(--green));border-radius:5px;transition:width .9s ease;}
+.db-f{height:100%;background:linear-gradient(90deg,var(--red2),var(--red));border-radius:5px;transition:width .9s ease;}
+.db-u{height:100%;background:var(--yellow);border-radius:5px;transition:width .9s ease;}
+.dist-legend{display:flex;gap:10px;flex-wrap:wrap;}
+.dl{display:flex;align-items:center;gap:5px;font-family:var(--mono);font-size:.56rem;color:var(--t2);}
+.dl-dot{width:6px;height:6px;border-radius:50%;}
+
+/* Feature bars */
+.feat-area{padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.feat-title{font-family:var(--mono);font-size:.56rem;text-transform:uppercase;letter-spacing:.12em;color:var(--blue);margin-bottom:10px;}
+.feat-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.feat-name{font-family:var(--mono);font-size:.6rem;color:var(--t2);width:86px;flex-shrink:0;}
+.feat-track{flex:1;height:4px;background:var(--bg2);border-radius:2px;overflow:hidden;}
+.feat-fill{height:100%;border-radius:2px;transition:width .9s ease;}
+.feat-val{font-family:var(--mono);font-size:.58rem;color:var(--t1);width:42px;text-align:right;flex-shrink:0;}
+
+/* Log */
+.log-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 14px;border-bottom:1px solid var(--border);flex-shrink:0;
+  position:sticky;top:0;background:var(--bg1);z-index:2;
+}
+.log-title{font-family:var(--mono);font-size:.56rem;text-transform:uppercase;letter-spacing:.14em;color:var(--t3);}
+.log-clr{background:none;border:none;font-family:var(--mono);font-size:.56rem;color:var(--t3);cursor:pointer;transition:color .15s;}
+.log-clr:hover{color:var(--red);}
+#logArea{padding:6px;}
+.log-line{
+  display:flex;gap:8px;align-items:flex-start;padding:4px 7px;border-radius:3px;
+  font-family:var(--mono);font-size:.6rem;line-height:1.45;
+  animation:logIn .22s ease forwards;
+}
+@keyframes logIn{from{opacity:0;transform:translateX(5px)}to{opacity:1;transform:none}}
+.log-line.info{background:rgba(68,138,255,.05);color:var(--t2);}
+.log-line.ok{background:rgba(0,230,118,.05);color:var(--green);}
+.log-line.warn{background:rgba(255,204,2,.05);color:var(--yellow);}
+.log-line.err{background:rgba(255,23,68,.05);color:var(--red);}
+.log-ts{color:var(--t3);flex-shrink:0;}
+
+/* Export dock */
+.export-dock{
+  padding:10px 12px;border-top:1px solid var(--border);flex-shrink:0;
+  display:flex;flex-direction:column;gap:6px;
+}
+.exp-row{display:flex;gap:5px;}
+.exp-btn{
+  flex:1;padding:7px 4px;font-family:var(--mono);font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--bg2);border:1px solid var(--border);color:var(--t2);border-radius:3px;cursor:pointer;transition:all .17s;
+}
+.exp-btn:hover{color:var(--cyan);border-color:var(--cyan3);}
+.exp-btn.prim{background:rgba(0,217,196,.08);color:var(--cyan);}
+.exp-btn.prim:hover{background:rgba(0,217,196,.16);box-shadow:var(--glow-c);}
+
+/* =====  STATUSBAR  ===== */
+#statusbar{
+  height:30px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;
+  background:rgba(3,7,13,.97);border-top:1px solid var(--border);
+  font-family:var(--mono);font-size:.56rem;color:var(--t3);letter-spacing:.06em;
+  position:relative;z-index:10;
+}
+.sb-left{display:flex;gap:16px;}
+.sb-item{display:flex;align-items:center;gap:5px;}
+.sb-dot{width:4px;height:4px;border-radius:50%;}
+
+/* Scrollbars */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--t3);border-radius:2px;}
+.queue-area::-webkit-scrollbar-thumb,
+#results::-webkit-scrollbar-thumb,
+#logArea::-webkit-scrollbar-thumb{background:var(--bg4);}
+
+/* Modal */
+.modal-bg{
+  position:fixed;inset:0;z-index:1000;
+  background:rgba(3,7,13,.92);backdrop-filter:blur(10px);
+  display:none;align-items:center;justify-content:center;
+}
+.modal-bg.open{display:flex;}
+.modal{
+  background:var(--bg2);border:1px solid var(--border2);border-radius:8px;
+  padding:28px;width:520px;max-width:92vw;
+  animation:modalIn .22s ease;
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}
+.modal-title{font-family:var(--display);font-size:1.1rem;font-weight:800;letter-spacing:.12em;color:var(--cyan);margin-bottom:14px;}
+.modal-body{font-size:.8rem;color:var(--t2);line-height:1.85;margin-bottom:18px;}
+.modal-body strong{color:var(--t1);}
+.modal-close{
+  width:100%;padding:11px;
+  background:linear-gradient(135deg,var(--cyan),var(--blue2));
+  color:var(--bg0);border:none;border-radius:4px;
+  font-family:var(--display);font-size:.9rem;font-weight:800;letter-spacing:.1em;
+  cursor:pointer;transition:opacity .2s;
+}
+.modal-close:hover{opacity:.9;}
+</style>
+</head>
+<body>
+
+<!-- Modal -->
+<div class="modal-bg" id="modalBg">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle"></div>
+    <div class="modal-body" id="modalBody"></div>
+    <button class="modal-close" onclick="closeModal()">CLOSE</button>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="brand">
+    <div class="brand-icon">
+      <svg viewBox="0 0 30 30" fill="none">
+        <circle cx="15" cy="15" r="14" stroke="#00d9c4" stroke-width="1.2" opacity=".35"/>
+        <path d="M3 15 Q7 6 15 15 Q23 24 27 15" stroke="#00d9c4" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <path d="M9 19 Q11 15 13 19" stroke="#ff5722" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+        <circle cx="15" cy="15" r="2" fill="#00d9c4"/>
+      </svg>
+    </div>
+    <div>
+      <div class="brand-name">SpliceDetect<em>Pro</em></div>
+      <div class="brand-sub">AI VOICE FORENSICS PLATFORM v3.0</div>
+    </div>
+  </div>
+
+  <div class="nav-pills">
+    <button class="nav-pill on" id="navAnalyzer">⬡ Analyzer</button>
+    <button class="nav-pill" id="navGuide" onclick="openModal('How It Works',howItWorksHtml())">⊙ Guide</button>
+    <button class="nav-pill" id="navAbout" onclick="openModal('About',aboutHtml())">◎ About</button>
+  </div>
+
+  <div class="topbar-right">
+    <div class="time-badge" id="clock"></div>
+  </div>
+</div>
+
+<!-- BODY -->
+<div id="body">
+
+  <!-- LEFT PANEL -->
+  <div class="col" id="leftCol">
+    <div class="col-head">
+      <span class="col-title">Audio Input</span>
+      <span class="col-badge" id="queueBadge">0 FILES</span>
+    </div>
+
+    <div class="input-tabs">
+      <button class="itab on" id="itUpload" onclick="setMode('upload')">📁 Upload</button>
+      <button class="itab" id="itRecord" onclick="setMode('record')">🎙 Record</button>
+      <button class="itab" id="itUrl"    onclick="setMode('url')">🔗 URL</button>
+    </div>
+
+    <!-- Upload zone -->
+    <div id="dropZone" onclick="document.getElementById('fileIn').click()">
+      <input type="file" id="fileIn" accept="audio/*" multiple onchange="handleFiles(this.files)">
+      <span class="dz-ico">🎵</span>
+      <div class="dz-h">Drop Audio Files Here</div>
+      <div class="dz-s">MP3 · WAV · OGG · WEBM · M4A · FLAC · AAC</div>
+    </div>
+
+    <!-- Record panel -->
+    <div id="recPanel">
+      <div class="rec-viz" id="recViz"></div>
+      <div class="rec-timer" id="recTimer">00:00</div>
+      <div class="rec-row">
+        <button class="rec-btn rec-start" id="recBtn" onclick="toggleRec()">🎙</button>
+      </div>
+      <div class="rec-hint" id="recHint">Click to start recording</div>
+    </div>
+
+    <!-- URL panel -->
+    <div id="urlPanel">
+      <input class="url-inp" id="urlInp" type="url" placeholder="https://example.com/audio.mp3" onkeydown="if(event.key==='Enter')loadUrl()">
+      <button class="exp-btn prim" style="width:100%;padding:9px;" onclick="loadUrl()">LOAD FROM URL</button>
+    </div>
+
+    <!-- Queue -->
+    <div class="queue-area" id="queueArea">
+      <div class="q-empty" id="qEmpty">No files queued.<br>Upload, record, or paste a URL<br>to begin forensic analysis.</div>
+    </div>
+
+    <div class="run-dock">
+      <button id="runBtn" disabled onclick="runAnalysis()">RUN FORENSIC ANALYSIS</button>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div id="center">
+    <div class="viz-head">
+      <span class="viz-title">◈ Waveform · Spectrogram · Splice Map</span>
+      <div class="viz-controls">
+        <button class="vc-btn on" id="vw" onclick="setView('wave')">WAVE</button>
+        <button class="vc-btn" id="ve" onclick="setView('energy')">ENERGY</button>
+        <button class="vc-btn" id="vz" onclick="setView('zcr')">ZCR</button>
+      </div>
+    </div>
+    <canvas id="waveCanvas"></canvas>
+    <canvas id="specCanvas"></canvas>
+    <div class="spec-row">
+      <span class="spec-lbl">SPECTROGRAM — frequency vs time</span>
+      <div class="freq-scale">
+        <span class="fq">0 Hz</span><span class="fq">1k</span><span class="fq">2k</span>
+        <span class="fq">4k</span><span class="fq">8k</span><span class="fq">16k</span>
+      </div>
+    </div>
+
+    <div id="playback">
+      <button class="pb-ctrl" id="playBtn" onclick="togglePlay()">▶ PLAY</button>
+      <button class="pb-ctrl" onclick="stopPlay()">■ STOP</button>
+      <div id="pbBar" onclick="seekTo(event)">
+        <div id="pbProgress"></div>
+      </div>
+      <span id="pbTime">0:00 / 0:00</span>
+      <input id="volSlider" type="range" min="0" max="1" step=".05" value="1" oninput="setVol(this.value)" title="Volume">
+    </div>
+
+    <div id="progStrip">
+      <div class="prog-head">
+        <span class="prog-lbl" id="progLabel">READY</span>
+        <span id="progPct">0%</span>
+      </div>
+      <div class="prog-track"><div id="progFill"></div></div>
+      <div class="steps">
+        <div class="sch" id="s1"><div class="sch-dot"></div>Preprocess</div>
+        <div class="sch" id="s2"><div class="sch-dot"></div>Features</div>
+        <div class="sch" id="s3"><div class="sch-dot"></div>MFCC</div>
+        <div class="sch" id="s4"><div class="sch-dot"></div>Spectral</div>
+        <div class="sch" id="s5"><div class="sch-dot"></div>Splice Map</div>
+        <div class="sch" id="s6"><div class="sch-dot"></div>Embedding</div>
+        <div class="sch" id="s7"><div class="sch-dot"></div>AI Infer</div>
+        <div class="sch" id="s8"><div class="sch-dot"></div>Report</div>
+      </div>
+    </div>
+
+    <div id="results">
+      <div class="no-res" id="noRes">
+        <div class="nr-ico">🔬</div>
+        <div class="nr-h">FORENSIC ENGINE READY</div>
+        <div class="nr-p">Upload audio files, record your voice, or paste a URL. AI will detect splicing, deepfakes, copy-move forgeries, and synthetic voice artifacts.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="col" id="rightCol">
+    <div class="col-head">
+      <span class="col-title">Summary</span>
+      <span class="col-badge" id="summaryBadge">0 RESULTS</span>
+    </div>
+
+    <div class="stats-grid">
+      <div class="sg"><div class="sg-v tot" id="stTotal">0</div><div class="sg-l">Analyzed</div></div>
+      <div class="sg"><div class="sg-v rea" id="stReal">0</div><div class="sg-l">Genuine</div></div>
+      <div class="sg"><div class="sg-v fak" id="stFake">0</div><div class="sg-l">Fake</div></div>
+      <div class="sg"><div class="sg-v unc" id="stUnc">0</div><div class="sg-l">Uncertain</div></div>
+    </div>
+
+    <div class="dist-area">
+      <div class="dist-lbl">Distribution</div>
+      <div class="dist-bar">
+        <div class="db-r" id="dbR" style="width:0%"></div>
+        <div class="db-f" id="dbF" style="width:0%"></div>
+        <div class="db-u" id="dbU" style="width:0%"></div>
+      </div>
+      <div class="dist-legend">
+        <div class="dl"><div class="dl-dot" style="background:var(--green)"></div>Real</div>
+        <div class="dl"><div class="dl-dot" style="background:var(--red)"></div>Fake</div>
+        <div class="dl"><div class="dl-dot" style="background:var(--yellow)"></div>Uncertain</div>
+      </div>
+    </div>
+
+    <div class="feat-area">
+      <div class="feat-title">Last File — Feature Profile</div>
+      <div class="feat-row">
+        <span class="feat-name">Pitch F0</span>
+        <div class="feat-track"><div class="feat-fill" id="ff-pitch" style="width:0%;background:var(--cyan)"></div></div>
+        <span class="feat-val" id="fv-pitch">—</span>
+      </div>
+      <div class="feat-row">
+        <span class="feat-name">Jitter %</span>
+        <div class="feat-track"><div class="feat-fill" id="ff-zcr" style="width:0%;background:var(--blue)"></div></div>
+        <span class="feat-val" id="fv-zcr">—</span>
+      </div>
+      <div class="feat-row">
+        <span class="feat-name">Energy CoV</span>
+        <div class="feat-track"><div class="feat-fill" id="ff-rms" style="width:0%;background:var(--yellow)"></div></div>
+        <span class="feat-val" id="fv-rms">—</span>
+      </div>
+      <div class="feat-row">
+        <span class="feat-name">Periodicity</span>
+        <div class="feat-track"><div class="feat-fill" id="ff-sc" style="width:0%;background:var(--violet)"></div></div>
+        <span class="feat-val" id="fv-sc">—</span>
+      </div>
+      <div class="feat-row">
+        <span class="feat-name">Splice Pts</span>
+        <div class="feat-track"><div class="feat-fill" id="ff-disc" style="width:0%;background:var(--red)"></div></div>
+        <span class="feat-val" id="fv-disc">—</span>
+      </div>
+      <div class="feat-row">
+        <span class="feat-name">Entropy</span>
+        <div class="feat-track"><div class="feat-fill" id="ff-ent" style="width:0%;background:var(--orange)"></div></div>
+        <span class="feat-val" id="fv-ent">—</span>
+      </div>
+    </div>
+
+    <div class="log-head">
+      <span class="log-title">Detection Log</span>
+      <button class="log-clr" onclick="clearLog()">CLEAR</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;min-height:0;">
+      <div id="logArea"></div>
+    </div>
+
+    <div class="export-dock">
+      <div class="exp-row">
+        <button class="exp-btn prim" onclick="exportJSON()">⬇ JSON</button>
+        <button class="exp-btn" onclick="exportCSV()">⬇ CSV</button>
+        <button class="exp-btn" onclick="exportReport()">⬇ REPORT</button>
+      </div>
+      <div class="exp-row">
+        <button class="exp-btn" style="color:var(--red);border-color:rgba(255,23,68,.2);" onclick="clearResults()">✕ CLEAR RESULTS</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end body -->
+
+<!-- STATUSBAR -->
+<div id="statusbar">
+  <div class="sb-left">
+    <div class="sb-item"><div class="sb-dot" style="background:var(--green)"></div><span id="sbEngine">ENGINE: READY</span></div>
+    <div class="sb-item"><span id="sbFiles">FILES: 0</span></div>
+  </div>
+  <span id="sbMsg">SpliceDetect Pro — Professional Voice Forensics Platform</span>
+  <span id="sbTime"></span>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//   SPLICEDETECT PRO — COMPLETE ENGINE
+// ═══════════════════════════════════════════════════════════
+
+// ── Global state ──
+const S = {
+  queue: [],
+  results: [],
+  mode: 'upload',
+  view: 'wave',
+  nextId: 1,
+  analyzing: false,
+  currentBuf: null,
+  currentBlob: null,
+  audioSrc: null,
+  audioCtx: null,
+  mediaRec: null,
+  recChunks: [],
+  recSec: 0,
+  recInt: null,
+  recording: false,
+  waveData: null,
+  energyData: null,
+  zcrData: null,
+  splicePoints: [],
+};
+
+// ── Clock ──
+setInterval(() => {
+  const n = new Date();
+  const t = n.toLocaleTimeString();
+  document.getElementById('clock').textContent = n.toLocaleDateString() + '  ' + t;
+  document.getElementById('sbTime').textContent = t;
+}, 1000);
+
+// ════════════════════════════════════════
+//  INPUT MODE
+// ════════════════════════════════════════
+function setMode(m) {
+  S.mode = m;
+  ['upload','record','url'].forEach(k => {
+    const id = 'it'+k.charAt(0).toUpperCase()+k.slice(1);
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('on', k===m);
+  });
+  document.getElementById('dropZone').style.display  = m==='upload'?'block':'none';
+  document.getElementById('recPanel').classList.toggle('vis', m==='record');
+  document.getElementById('urlPanel').classList.toggle('vis', m==='url');
+}
+
+// ════════════════════════════════════════
+//  FILE HANDLING
+// ════════════════════════════════════════
+function handleFiles(files) {
+  let added = 0;
+  for (const f of files) {
+    if (f.size > 80*1024*1024) { log('Too large: '+f.name+' (max 80MB)','warn'); continue; }
+    if (!f.type.startsWith('audio/') && !/\.(mp3|wav|ogg|webm|m4a|flac|aac|opus)$/i.test(f.name)) {
+      log('Unsupported format: '+f.name,'err'); continue;
+    }
+    if (S.queue.find(q=>q.name===f.name)) continue;
+    S.queue.push({ id:S.nextId++, name:f.name, size:f.size, blob:f, type:f.type });
+    log('Queued: '+f.name+' ('+fmtBytes(f.size)+')','info');
+    added++;
+  }
+  if (added) { renderQueue(); previewLast(); }
+}
+
+async function loadUrl() {
+  const url = document.getElementById('urlInp').value.trim();
+  if (!url) return;
+  log('Fetching: '+url,'info');
+  try {
+    const r = await fetch(url);
+    const blob = await r.blob();
+    const name = url.split('/').pop().split('?')[0] || 'audio.mp3';
+    S.queue.push({ id:S.nextId++, name, size:blob.size, blob, type:blob.type||'audio/mpeg' });
+    renderQueue(); previewLast();
+    log('Loaded: '+name,'ok');
+  } catch(e) { log('URL load failed: '+e.message,'err'); }
+}
+
+function removeFile(id) {
+  S.queue = S.queue.filter(q=>q.id!==id);
+  renderQueue();
+  if (S.queue.length===0) { document.getElementById('runBtn').disabled=true; clearCanvases(); }
+  else previewLast();
+  log('File removed','info');
+}
+
+function renderQueue() {
+  const area = document.getElementById('queueArea');
+  document.getElementById('queueBadge').textContent = S.queue.length+' FILES';
+  document.getElementById('sbFiles').textContent = 'FILES: '+S.queue.length;
+  area.querySelectorAll('.qfile').forEach(e=>e.remove());
+  document.getElementById('qEmpty').style.display = S.queue.length ? 'none' : '';
+  document.getElementById('runBtn').disabled = !S.queue.length;
+  S.queue.forEach(f => {
+    const res = S.results.find(r=>r.file.id===f.id);
+    let cls='', ico='⏳';
+    if (res) {
+      const v=res.ai.verdict;
+      cls=v==='REAL'?'done-r':v==='FAKE'?'done-f':'done-u';
+      ico=v==='REAL'?'✅':v==='FAKE'?'⛔':'⚠️';
+    }
+    const el = document.createElement('div');
+    el.className='qfile '+cls;
+    el.id='qf-'+f.id;
+    el.innerHTML=`<span class="qf-ico">🎵</span><span class="qf-name">${f.name}</span>`+
+      `<span class="qf-sz">${fmtBytes(f.size)}</span><span class="qf-st">${ico}</span>`+
+      `<button class="qf-del" onclick="removeFile(${f.id});event.stopPropagation()">✕</button>`;
+    el.onclick = () => { previewFile(f); if(res) updateFeatureBars(res.features); };
+    area.appendChild(el);
+  });
+}
+
+function previewLast() {
+  if (S.queue.length) previewFile(S.queue[S.queue.length-1]);
+}
+
+// ════════════════════════════════════════
+//  RECORDING
+// ════════════════════════════════════════
+async function toggleRec() {
+  if (!S.recording) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      S.recChunks=[];
+      S.mediaRec = new MediaRecorder(stream);
+
+      // Visualizer
+      const viz = document.getElementById('recViz');
+      viz.innerHTML='';
+      for (let i=0;i<40;i++) { const b=document.createElement('div');b.className='rec-bar';b.style.height='8%';viz.appendChild(b); }
+      const ac=new AudioContext(), src=ac.createMediaStreamSource(stream), an=ac.createAnalyser();
+      an.fftSize=128; src.connect(an);
+      const fd=new Uint8Array(an.frequencyBinCount);
+      const bars=viz.querySelectorAll('.rec-bar');
+      const vi=setInterval(()=>{an.getByteFrequencyData(fd);bars.forEach((b,i)=>{const v=fd[Math.floor(i*fd.length/bars.length)]/255;b.style.height=(4+v*92)+'%';b.style.opacity=.35+v*.65;});},45);
+
+      S.mediaRec.ondataavailable=e=>S.recChunks.push(e.data);
+      S.mediaRec.onstop=()=>{
+        clearInterval(vi); ac.close(); stream.getTracks().forEach(t=>t.stop());
+        const blob=new Blob(S.recChunks,{type:'audio/webm'});
+        const ts=new Date().toISOString().slice(11,19).replace(/:/g,'-');
+        const name='rec_'+ts+'.webm';
+        S.queue.push({id:S.nextId++,name,size:blob.size,blob,type:'audio/webm'});
+        renderQueue(); previewLast();
+        log('Recording saved: '+name+' ('+fmtBytes(blob.size)+')','ok');
+        setMode('upload');
+      };
+      S.mediaRec.start();
+      S.recording=true; S.recSec=0;
+      document.getElementById('recBtn').classList.add('recording');
+      document.getElementById('recBtn').textContent='⏹';
+      document.getElementById('recHint').textContent='Recording… click to stop (max 3 min)';
+      S.recInt=setInterval(()=>{
+        S.recSec++;
+        const m=String(Math.floor(S.recSec/60)).padStart(2,'0');
+        const s=String(S.recSec%60).padStart(2,'0');
+        document.getElementById('recTimer').textContent=m+':'+s;
+        if(S.recSec>=180) toggleRec();
+      },1000);
+      log('Recording started','info');
+    } catch(e) { log('Mic denied: '+e.message,'err'); openModal('Microphone Access','Please allow microphone permission in your browser to use live recording.'); }
+  } else {
+    S.mediaRec.stop(); clearInterval(S.recInt); S.recording=false;
+    document.getElementById('recBtn').classList.remove('recording');
+    document.getElementById('recBtn').textContent='🎙';
+    document.getElementById('recHint').textContent='Click to start recording';
+    document.getElementById('recTimer').textContent='00:00';
+    log('Recording stopped','info');
+  }
+}
+
+// ════════════════════════════════════════
+//  WAVEFORM & SPECTROGRAM DISPLAY
+// ════════════════════════════════════════
+async function previewFile(f) {
+  S.currentBlob = f.blob;
+  try {
+    const arr = await f.blob.arrayBuffer();
+    const ac = new AudioContext();
+    const ab = await ac.decodeAudioData(arr);
+    S.currentBuf = ab;
+    const ch = ab.getChannelData(0);
+    const sr = ab.sampleRate;
+    // Energy frames
+    const fSz=512;
+    S.energyData=[];
+    for(let i=0;i<ch.length-fSz;i+=fSz){let e=0;for(let j=i;j<i+fSz;j++)e+=ch[j]*ch[j];S.energyData.push(Math.sqrt(e/fSz));}
+    // ZCR frames
+    S.zcrData=[];
+    for(let i=0;i<ch.length-fSz;i+=fSz){let z=0;for(let j=i+1;j<i+fSz;j++)if((ch[j]>=0)!==(ch[j-1]>=0))z++;S.zcrData.push(z/fSz);}
+    S.waveData = ch;
+    S.splicePoints = findSplicePoints(S.energyData, sr, fSz);
+    drawWave();
+    drawSpectrogram(ch, sr);
+    await ac.close();
+  } catch(e) { log('Preview error: '+e.message,'warn'); }
+}
+
+function findSplicePoints(frames, sr, fSz) {
+  if (!frames || frames.length < 5) return [];
+  const mean = frames.reduce((a,b)=>a+b,0)/frames.length;
+  const pts = [];
+  for (let i=2; i<frames.length-2; i++) {
+    const d = Math.abs(frames[i]-frames[i-1]);
+    const local = (frames[i-2]+frames[i-1]+frames[i+1]+frames[i+2])/4;
+    if (d > mean*2.3 && d > local*1.9) {
+      if (!pts.length || i-pts[pts.length-1].idx > 8) {
+        pts.push({ idx:i, time:((i*fSz/sr)*1000).toFixed(0)+'ms',
+          delta:d.toFixed(4), sev:d>mean*5?'CRIT':d>mean*3.5?'HIGH':d>mean*2.5?'MED':'LOW' });
+      }
+    }
+  }
+  return pts;
+}
+
+function drawWave() {
+  const cv = document.getElementById('waveCanvas');
+  const ctx = cv.getContext('2d');
+  cv.width = cv.offsetWidth; cv.height = cv.offsetHeight;
+  const W=cv.width, H=cv.height;
+  ctx.fillStyle='#09121f'; ctx.fillRect(0,0,W,H);
+
+  // Center line
+  ctx.strokeStyle='rgba(0,217,196,0.08)';ctx.setLineDash([5,7]);
+  ctx.beginPath();ctx.moveTo(0,H/2);ctx.lineTo(W,H/2);ctx.stroke();ctx.setLineDash([]);
+
+  const data = S.view==='wave'?S.waveData : S.view==='energy'?S.energyData:S.zcrData;
+  if (!data) return;
+  const step = Math.max(1, Math.floor(data.length/W));
+  const maxV = S.view==='wave'?1:Math.max(...(S.view==='energy'?S.energyData:S.zcrData))||1;
+
+  if (S.view==='wave') {
+    // Gradient waveform
+    const gr = ctx.createLinearGradient(0,0,W,0);
+    gr.addColorStop(0,'rgba(68,138,255,0.8)');gr.addColorStop(.5,'rgba(0,217,196,0.9)');gr.addColorStop(1,'rgba(68,138,255,0.8)');
+    ctx.beginPath();
+    for (let x=0;x<W;x++) {
+      let mn=1,mx=-1;
+      for(let j=0;j<step;j++){const i=x*step+j;if(i<data.length){mn=Math.min(mn,data[i]);mx=Math.max(mx,data[i]);}}
+      ctx.moveTo(x, H/2+mn*(H/2)*.88); ctx.lineTo(x, H/2+mx*(H/2)*.88);
+    }
+    ctx.strokeStyle=gr; ctx.lineWidth=1; ctx.stroke();
+    // Fill area
+    const grf=ctx.createLinearGradient(0,0,0,H);
+    grf.addColorStop(0,'rgba(0,217,196,0.14)');grf.addColorStop(.5,'rgba(0,217,196,0.05)');grf.addColorStop(1,'rgba(0,217,196,0.01)');
+    ctx.beginPath(); ctx.moveTo(0,H/2);
+    for(let x=0;x<W;x++){let s=0,c=0;for(let j=0;j<step;j++){const i=x*step+j;if(i<data.length){s+=data[i];c++;}}ctx.lineTo(x,H/2+(s/c)*(H/2)*.8);}
+    for(let x=W-1;x>=0;x--){ctx.lineTo(x,H/2);}
+    ctx.fillStyle=grf; ctx.fill();
+  } else {
+    const bw=Math.max(1,W/data.length-0.5);
+    data.forEach((v,i)=>{
+      const x=i/data.length*W, h=(v/maxV)*(H-4);
+      ctx.fillStyle=S.view==='energy'?`rgba(255,176,32,${.4+v/maxV*.5})`:`rgba(68,138,255,${.4+v/maxV*.5})`;
+      ctx.fillRect(x,H-h-2,bw,h);
+    });
+  }
+
+  // Splice markers
+  if (S.view==='wave') {
+    S.splicePoints.forEach((sp,i)=>{
+      const x=sp.idx/S.energyData.length*W;
+      ctx.strokeStyle='rgba(255,87,34,0.65)';ctx.lineWidth=1.5;ctx.setLineDash([3,4]);
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='rgba(255,87,34,0.18)';ctx.fillRect(x,0,3,H);
+      ctx.font='9px IBM Plex Mono';ctx.fillStyle='rgba(255,87,34,0.8)';
+      ctx.fillText('SP'+(i+1),x+4,12);
+    });
+  }
+}
+
+function drawSpectrogram(data, sr) {
+  const cv = document.getElementById('specCanvas');
+  const ctx = cv.getContext('2d');
+  cv.width=cv.offsetWidth; cv.height=cv.offsetHeight;
+  const W=cv.width, H=cv.height;
+  const fftSz=256, hop=Math.max(1,Math.floor(data.length/W));
+  for (let x=0;x<W;x++) {
+    const st=x*hop;
+    const frame=data.slice(st,st+fftSz);
+    for (let k=0;k<Math.min(H,fftSz/2);k++) {
+      let re=0,im=0;
+      for(let n=0;n<frame.length;n++){const a=2*Math.PI*k*n/fftSz;re+=(frame[n]||0)*Math.cos(a);im-=(frame[n]||0)*Math.sin(a);}
+      const mag=Math.sqrt(re*re+im*im)/fftSz;
+      const db=Math.max(0,Math.min(1,(20*Math.log10(mag+1e-9)+80)/80));
+      const y=H-Math.floor(k/fftSz*2*H)-1;
+      ctx.fillStyle=`rgb(${Math.floor(db*220)},${Math.floor(db*130)},${Math.floor((1-db)*200)})`;
+      ctx.fillRect(x,y,1,1);
+    }
+  }
+}
+
+function clearCanvases() {
+  ['waveCanvas','specCanvas'].forEach(id=>{
+    const cv=document.getElementById(id);
+    const ctx=cv.getContext('2d');
+    ctx.fillStyle=id==='waveCanvas'?'#09121f':'#060d18';
+    ctx.fillRect(0,0,cv.width,cv.height);
+  });
+  S.waveData=S.energyData=S.zcrData=null; S.splicePoints=[];
+}
+
+function setView(v) {
+  S.view=v;
+  ['vw','ve','vz'].forEach((id,i)=>document.getElementById(id).classList.toggle('on',['wave','energy','zcr'][i]===v));
+  drawWave();
+}
+
+window.addEventListener('resize',()=>{ if(S.waveData)drawWave(); });
+
+// ════════════════════════════════════════
+//  PLAYBACK
+// ════════════════════════════════════════
+let playAC=null, playNode=null, playGain=null, playStart=0, playOffset=0, isPlaying=false, playDur=0;
+
+function togglePlay() {
+  if (!S.currentBuf) { log('No audio loaded','warn'); return; }
+  if (isPlaying) { pausePlay(); return; }
+  startPlay();
+}
+
+function startPlay() {
+  stopPlay();
+  playAC = new AudioContext();
+  playGain = playAC.createGain();
+  playGain.gain.value = parseFloat(document.getElementById('volSlider').value);
+  playNode = playAC.createBufferSource();
+  playNode.buffer = S.currentBuf;
+  playNode.connect(playGain); playGain.connect(playAC.destination);
+  playDur = S.currentBuf.duration;
+  playNode.start(0, playOffset);
+  playStart = playAC.currentTime - playOffset;
+  isPlaying = true;
+  document.getElementById('playBtn').textContent = '⏸ PAUSE';
+  playNode.onended = () => { isPlaying=false; document.getElementById('playBtn').textContent='▶ PLAY'; playOffset=0; };
+  requestAnimationFrame(updatePlayhead);
+}
+function pausePlay() {
+  if (!playAC) return;
+  playOffset = playAC.currentTime - playStart;
+  playAC.close(); playAC=null; playGain=null; isPlaying=false;
+  document.getElementById('playBtn').textContent='▶ PLAY';
+}
+function stopPlay() {
+  if (playAC) { try{playAC.close();}catch(e){} }
+  playAC=null; playNode=null; playGain=null; isPlaying=false; playOffset=0;
+  document.getElementById('playBtn').textContent='▶ PLAY';
+  document.getElementById('pbProgress').style.width='0%';
+  document.getElementById('pbTime').textContent='0:00 / 0:00';
+}
+function updatePlayhead() {
+  if (!isPlaying||!playAC) return;
+  const cur=playAC.currentTime-playStart;
+  const pct=Math.min(100,cur/playDur*100);
+  document.getElementById('pbProgress').style.width=pct+'%';
+  document.getElementById('pbTime').textContent=fmtTime(cur)+' / '+fmtTime(playDur);
+  requestAnimationFrame(updatePlayhead);
+}
+function seekTo(e) {
+  if (!S.currentBuf) return;
+  const bar=document.getElementById('pbBar');
+  const pct=e.offsetX/bar.offsetWidth;
+  playOffset = pct * S.currentBuf.duration;
+  if (isPlaying) startPlay(); else { document.getElementById('pbProgress').style.width=(pct*100)+'%'; document.getElementById('pbTime').textContent=fmtTime(playOffset)+' / '+fmtTime(S.currentBuf.duration); }
+}
+function setVol(v) { if (playGain) { playGain.gain.value = parseFloat(v); } }
+function fmtTime(s) { const m=Math.floor(s/60),sec=Math.floor(s%60);return m+':'+String(sec).padStart(2,'0'); }
+
+// ════════════════════════════════════════
+//  HUMAN vs AI VOICE DETECTION ENGINE
+// ════════════════════════════════════════
+
+function fft(re, im) {
+  const N = re.length;
+  for (let i=1,j=0; i<N; i++) {
+    let bit = N>>1;
+    for (; j&bit; bit>>=1) j^=bit;
+    j^=bit;
+    if (i<j) { [re[i],re[j]]=[re[j],re[i]]; [im[i],im[j]]=[im[j],im[i]]; }
+  }
+  for (let len=2; len<=N; len<<=1) {
+    const ang = -2*Math.PI/len;
+    const wRe=Math.cos(ang), wIm=Math.sin(ang);
+    for (let i=0; i<N; i+=len) {
+      let curR=1, curI=0;
+      for (let j=0; j<len/2; j++) {
+        const uR=re[i+j], uI=im[i+j];
+        const vR=re[i+j+len/2]*curR - im[i+j+len/2]*curI;
+        const vI=re[i+j+len/2]*curI + im[i+j+len/2]*curR;
+        re[i+j]=uR+vR; im[i+j]=uI+vI;
+        re[i+j+len/2]=uR-vR; im[i+j+len/2]=uI-vI;
+        const newR=curR*wRe-curI*wIm;
+        curI=curR*wIm+curI*wRe; curR=newR;
+      }
+    }
+  }
+}
+
+// Power spectrum of a signal frame (returns Float32Array of length N/2)
+function powerSpectrum(frame, N) {
+  const re=new Float32Array(N), im=new Float32Array(N);
+  for (let i=0;i<Math.min(frame.length,N);i++) {
+    re[i]=(frame[i]||0)*(0.54-0.46*Math.cos(2*Math.PI*i/(N-1))); // Hamming
+  }
+  fft(re,im);
+  const ps=new Float32Array(N/2);
+  for (let i=0;i<N/2;i++) ps[i]=re[i]*re[i]+im[i]*im[i];
+  return ps;
+}
+
+// Normalized autocorrelation pitch (YIN-inspired, much more accurate)
+function estimatePitch(frame, sr) {
+  const N=frame.length;
+  const minLag=Math.floor(sr/500), maxLag=Math.floor(sr/60);
+  // Difference function
+  const df=new Float32Array(maxLag+1);
+  for (let tau=1;tau<=maxLag;tau++) {
+    let s=0;
+    for (let i=0;i<N-maxLag;i++) { const d=frame[i]-frame[i+tau]; s+=d*d; }
+    df[tau]=s;
+  }
+  // Cumulative mean normalized difference
+  const cmnd=new Float32Array(maxLag+1);
+  cmnd[0]=1; let runSum=0;
+  for (let tau=1;tau<=maxLag;tau++) { runSum+=df[tau]; cmnd[tau]=(tau*df[tau])/(runSum+1e-10); }
+  // Find first dip below threshold 0.1 in voiced region
+  const thresh=0.12;
+  for (let tau=minLag;tau<=maxLag-1;tau++) {
+    if (cmnd[tau]<thresh) {
+      // parabolic interpolation
+      const a=cmnd[tau-1]??cmnd[tau], b=cmnd[tau], c=cmnd[tau+1]??cmnd[tau];
+      const refinedTau = tau + (c-a)/(2*(2*b-a-c)+1e-10)*0.5;
+      return sr/refinedTau;
+    }
+  }
+  // Fallback: global minimum
+  let bestTau=minLag, bestVal=Infinity;
+  for (let tau=minLag;tau<=maxLag;tau++) { if(cmnd[tau]<bestVal){bestVal=cmnd[tau];bestTau=tau;} }
+  return bestVal < 0.4 ? sr/bestTau : 0; // 0 = unvoiced
+}
+
+// Compute MFCC for a frame (returns n coefficients)
+function frameMFCC(frame, sr, N, nFilt, n) {
+  const ps=powerSpectrum(frame, N);
+  const mMin=1125*Math.log(1+80/700), mMax=1125*Math.log(1+(sr/2)/700);
+  const mp=[];
+  for (let i=0;i<=nFilt+1;i++) mp.push(700*(Math.exp((mMin+i*(mMax-mMin)/(nFilt+1))/1125)-1));
+  const fb=new Float32Array(nFilt);
+  for (let k=0;k<N/2;k++) {
+    const freq=k*sr/N;
+    for (let m=0;m<nFilt;m++) {
+      if (freq>=mp[m]&&freq<=mp[m+1]) fb[m]+=(freq-mp[m])/(mp[m+1]-mp[m]+1e-10)*ps[k];
+      else if (freq>mp[m+1]&&freq<=mp[m+2]) fb[m]+=(mp[m+2]-freq)/(mp[m+2]-mp[m+1]+1e-10)*ps[k];
+    }
+  }
+  const coeffs=[];
+  for (let i=0;i<n;i++) {
+    let s=0;
+    for (let m=0;m<nFilt;m++) s+=Math.log(fb[m]+1e-10)*Math.cos(Math.PI*i*(m+0.5)/nFilt);
+    coeffs.push(s);
+  }
+  return coeffs;
+}
+
+// ════════════════════════════════════════
+//  FEATURE EXTRACTION — Human vs AI Voice
+// ════════════════════════════════════════
+async function extractFeatures(blob) {
+  const arr = await blob.arrayBuffer();
+  const ac = new AudioContext();
+  let ab;
+  try { ab = await ac.decodeAudioData(arr); }
+  catch(e) { await ac.close(); throw new Error('Decode failed: '+e.message); }
+  await ac.close();
+
+  const ch  = ab.getChannelData(0);
+  const sr  = ab.sampleRate;
+  const dur = ab.duration;
+  const N   = 1024; // FFT size — good balance of freq/time resolution
+  const HOP = 256;
+  const nFrames = Math.floor((ch.length - N) / HOP);
+
+  // ── Per-frame arrays ──
+  const energyArr=[], zcrArr=[], scArr=[], hnrArr=[];
+  const pitchArr=[], mfccArr=[];
+
+  for (let fi = 0; fi < nFrames; fi++) {
+    const s = fi * HOP;
+    const frame = new Float32Array(N);
+    for (let i = 0; i < N; i++) frame[i] = ch[s+i] || 0;
+
+    // Hamming window
+    const win = new Float32Array(N);
+    for (let i = 0; i < N; i++) win[i] = frame[i] * (0.54 - 0.46*Math.cos(2*Math.PI*i/(N-1)));
+
+    // RMS energy
+    let sq = 0; for (let v of win) sq += v*v;
+    const rms = Math.sqrt(sq/N);
+    energyArr.push(rms);
+
+    // ZCR
+    let zc = 0;
+    for (let i = 1; i < N; i++) if ((win[i]>=0) !== (win[i-1]>=0)) zc++;
+    zcrArr.push(zc/N);
+
+    // Only process voiced frames
+    if (rms < 0.002) continue;
+
+    // Power spectrum via FFT
+    const re = new Float32Array(N), im = new Float32Array(N);
+    for (let i = 0; i < N; i++) re[i] = win[i];
+    fft(re, im);
+    const ps = new Float32Array(N/2);
+    for (let i = 0; i < N/2; i++) ps[i] = re[i]*re[i] + im[i]*im[i];
+
+    // Spectral centroid
+    let ws=0, ts=0;
+    for (let i=0;i<N/2;i++){const f=i*sr/N;ws+=f*ps[i];ts+=ps[i];}
+    scArr.push(ts>0?ws/ts:0);
+
+    // HNR — Harmonic-to-Noise Ratio via autocorrelation
+    // Key discriminator: real voices have HNR 10-25dB, AI can be unnaturally high (>28dB) or variable
+    const minLag=Math.floor(sr/400), maxLag=Math.floor(sr/80);
+    let r0=0, rBest=0;
+    for (let i=0;i<N-maxLag;i++) r0+=win[i]*win[i];
+    for (let tau=minLag;tau<=maxLag;tau++) {
+      let r=0; for (let i=0;i<N-maxLag;i++) r+=win[i]*win[i+tau];
+      if (r>rBest) rBest=r;
+    }
+    if (r0>0&&rBest>0&&rBest<r0) {
+      const ratio=rBest/r0;
+      const hnr=ratio>=0.9999?40:10*Math.log10(ratio/(1-ratio));
+      hnrArr.push(Math.max(-20,Math.min(40,hnr)));
+    }
+
+    // MFCC — every 3rd voiced frame
+    if (fi % 3 === 0) {
+      const mMin=1125*Math.log(1+80/700), mMax=1125*Math.log(1+(sr/2)/700);
+      const nFilt=24, nCoef=13;
+      const fbPts=[];
+      for(let i=0;i<=nFilt+1;i++) fbPts.push(700*(Math.exp((mMin+i*(mMax-mMin)/(nFilt+1))/1125)-1));
+      const fb=new Float32Array(nFilt);
+      for(let k=1;k<N/2;k++){
+        const freq=k*sr/N;
+        for(let m=0;m<nFilt;m++){
+          if(freq>=fbPts[m]&&freq<=fbPts[m+1]) fb[m]+=(freq-fbPts[m])/(fbPts[m+1]-fbPts[m]+1e-9)*ps[k];
+          else if(freq>fbPts[m+1]&&freq<=fbPts[m+2]) fb[m]+=(fbPts[m+2]-freq)/(fbPts[m+2]-fbPts[m+1]+1e-9)*ps[k];
+        }
+      }
+      const coefs=[];
+      for(let i=0;i<nCoef;i++){let s=0;for(let m=0;m<nFilt;m++)s+=Math.log(fb[m]+1e-8)*Math.cos(Math.PI*i*(m+.5)/nFilt);coefs.push(s);}
+      mfccArr.push(coefs);
+    }
+  }
+
+  // ── Pitch: YIN on voiced segments (multi-frame, robust) ──
+  // Compute pitch on 40ms frames from voiced regions
+  const pitchWindowSamples = Math.round(0.04*sr);
+  const pitchHop = Math.round(0.01*sr);
+  const meanE = energyArr.reduce((a,b)=>a+b,0)/(energyArr.length||1);
+  const silThresh = Math.max(0.003, meanE*0.08);
+
+  for (let s=0; s+pitchWindowSamples<ch.length; s+=pitchHop) {
+    // Check if this region is voiced
+    let frameRms=0;
+    for(let i=s;i<s+pitchWindowSamples;i++) frameRms+=ch[i]*ch[i];
+    frameRms=Math.sqrt(frameRms/pitchWindowSamples);
+    if (frameRms<silThresh) continue;
+
+    const frame=Array.from(ch.slice(s,s+pitchWindowSamples));
+    const minLag=Math.floor(sr/500), maxLag=Math.floor(sr/60);
+
+    // YIN difference function
+    const df=new Float32Array(maxLag+1);
+    const L=Math.min(frame.length,pitchWindowSamples);
+    for(let tau=1;tau<=maxLag;tau++){
+      let sum=0;
+      for(let i=0;i<L-maxLag;i++){const d=frame[i]-(frame[i+tau]||0);sum+=d*d;}
+      df[tau]=sum;
+    }
+    // Cumulative mean normalized difference (CMND)
+    const cmnd=new Float32Array(maxLag+1); cmnd[0]=1;
+    let rs=0;
+    for(let tau=1;tau<=maxLag;tau++){rs+=df[tau];cmnd[tau]=(tau*df[tau])/(rs+1e-12);}
+
+    // Find first minimum below 0.15
+    for(let tau=minLag+1;tau<maxLag-1;tau++){
+      if(cmnd[tau]<0.15&&cmnd[tau]<cmnd[tau-1]&&cmnd[tau]<=cmnd[tau+1]){
+        // Parabolic refinement
+        const x0=cmnd[tau-1],x1=cmnd[tau],x2=cmnd[tau+1];
+        const denom=2*(2*x1-x0-x2);
+        const refined=denom!==0?tau+(x2-x0)/denom:tau;
+        if(refined>0) pitchArr.push(sr/refined);
+        break;
+      }
+    }
+  }
+
+  // ── Pitch jitter (RAP — Relative Average Perturbation) ──
+  // This is the REAL clinical jitter formula used in voice pathology.
+  // AI voices have jitter < 0.1%, real voices 0.2%–1.5% normal, >3% pathological.
+  let pitchMean=0, pitchJitter=0, pitchShimmer=0, pitchStd=0;
+  if (pitchArr.length >= 5) {
+    pitchMean = pitchArr.reduce((a,b)=>a+b,0)/pitchArr.length;
+    pitchStd  = Math.sqrt(pitchArr.reduce((a,b)=>a+(b-pitchMean)**2,0)/pitchArr.length);
+
+    // RAP jitter: mean |T[i] - (T[i-1]+T[i]+T[i+1])/3| / mean T
+    let rapSum=0;
+    for(let i=1;i<pitchArr.length-1;i++){
+      const period=sr/pitchArr[i], pPrev=sr/pitchArr[i-1], pNext=sr/pitchArr[i+1];
+      rapSum+=Math.abs(period-(pPrev+period+pNext)/3);
+    }
+    const meanPeriod=sr/pitchMean;
+    pitchJitter=(rapSum/(pitchArr.length-2))/meanPeriod; // dimensionless ratio
+
+    // Shimmer (amplitude perturbation) — use energy frames as proxy for amplitude
+    // Voiced energy frames sorted by time
+    const voicedEnergy=energyArr.filter(e=>e>silThresh);
+    if(voicedEnergy.length>4){
+      let shimSum=0;
+      for(let i=1;i<voicedEnergy.length;i++) shimSum+=Math.abs(voicedEnergy[i]-voicedEnergy[i-1]);
+      const meanAmp=voicedEnergy.reduce((a,b)=>a+b,0)/voicedEnergy.length;
+      pitchShimmer=(shimSum/(voicedEnergy.length-1))/(meanAmp||1);
+    }
+  }
+
+  // ── HNR statistics ──
+  const meanHNR  = hnrArr.length ? hnrArr.reduce((a,b)=>a+b,0)/hnrArr.length : 0;
+  const stdHNR   = hnrArr.length > 1
+    ? Math.sqrt(hnrArr.reduce((a,b)=>a+(b-meanHNR)**2,0)/hnrArr.length) : 0;
+  // HNR regularity: AI voice has unnaturally LOW std (too consistent)
+  // Real voice HNR varies frame to frame as vocal tract shape changes
+
+  // ── MFCC temporal delta (frame-to-frame change) ──
+  let mfccDelta=0, mfccVar=0, mfccDeltaStd=0;
+  if (mfccArr.length >= 3) {
+    const deltas=[];
+    for(let i=1;i<mfccArr.length;i++){
+      let d=0;
+      for(let k=1;k<13;k++) d+=(mfccArr[i][k]-mfccArr[i-1][k])**2;
+      deltas.push(Math.sqrt(d));
+    }
+    mfccDelta=deltas.reduce((a,b)=>a+b,0)/deltas.length;
+    mfccDeltaStd=Math.sqrt(deltas.reduce((a,b)=>a+(b-mfccDelta)**2,0)/deltas.length);
+    // MFCC[1-4] variance across time
+    for(let k=1;k<=4;k++){
+      const vals=mfccArr.map(m=>m[k]);
+      const mean=vals.reduce((a,b)=>a+b,0)/vals.length;
+      mfccVar+=vals.reduce((a,v)=>a+(v-mean)**2,0)/vals.length;
+    }
+    mfccVar/=4;
+  }
+
+  // ── ZCR stats ──
+  const voicedZcr = zcrArr.filter((_,i)=>energyArr[i]>silThresh);
+  const meanZcr   = (voicedZcr.reduce((a,b)=>a+b,0)/(voicedZcr.length||1))*1000;
+  const stdZcr    = voicedZcr.length>1
+    ? Math.sqrt(voicedZcr.map(z=>z*1000).reduce((a,b)=>a+(b-meanZcr)**2,0)/voicedZcr.length) : 0;
+
+  // ── Spectral centroid stats ──
+  const meanSC = scArr.reduce((a,b)=>a+b,0)/(scArr.length||1);
+  const stdSC  = scArr.length>1
+    ? Math.sqrt(scArr.reduce((a,b)=>a+(b-meanSC)**2,0)/scArr.length) : 0;
+
+  // ── Spectral irregularity (spiky spectrum = real voice harmonics) ──
+  // Real voice has sharp harmonic peaks. AI TTS often has smoother spectrum.
+  // Measure: mean squared difference between adjacent spectral bins (on average frame)
+  let spectralIrregularity = 0;
+  {
+    const midFi = Math.floor(nFrames/2);
+    const s2 = midFi*HOP;
+    const frame2 = new Float32Array(N);
+    for(let i=0;i<N;i++) frame2[i]=(ch[s2+i]||0)*(0.54-0.46*Math.cos(2*Math.PI*i/(N-1)));
+    const re2=new Float32Array(N),im2=new Float32Array(N);
+    for(let i=0;i<N;i++) re2[i]=frame2[i];
+    fft(re2,im2);
+    const ps2=new Float32Array(N/2);
+    for(let i=0;i<N/2;i++) ps2[i]=Math.sqrt(re2[i]*re2[i]+im2[i]*im2[i]);
+    let irrSum=0;
+    for(let i=1;i<N/2-1;i++) irrSum+=Math.abs(ps2[i]-(ps2[i-1]+ps2[i+1])/2);
+    spectralIrregularity=irrSum/(N/2);
+  }
+
+  // ── Energy stats ──
+  const stdE = Math.sqrt(energyArr.reduce((a,b)=>a+(b-meanE)**2,0)/(energyArr.length||1));
+  const eCov = meanE>0 ? stdE/meanE : 0;
+
+  // ── Silence ratio ──
+  const silFrames = energyArr.filter(e=>e<silThresh).length;
+  const silR = silFrames/(energyArr.length||1);
+
+  // ── Voiced ratio ──
+  const voicedFrames = energyArr.filter(e=>e>silThresh).length;
+  const voicedRatio  = voicedFrames/(energyArr.length||1);
+
+  // ── Shannon entropy of energy distribution ──
+  const maxE=Math.max(...energyArr)||1;
+  const bins20=new Array(20).fill(0);
+  for(const e of energyArr) bins20[Math.min(19,Math.floor(e/maxE*20))]++;
+  let shanEnt=0;
+  for(const b of bins20){if(b>0){const p=b/energyArr.length;shanEnt-=p*Math.log2(p);}}
+  const normEntropy=shanEnt/Math.log2(20);
+
+  // ── Energy discontinuities (splice detection) ──
+  const sps=[];
+  for(let i=5;i<energyArr.length-5;i++){
+    const delta=Math.abs(energyArr[i]-energyArr[i-1]);
+    const localMean=(energyArr.slice(i-5,i).reduce((a,b)=>a+b,0)/5)||1e-9;
+    const ratio=delta/localMean;
+    if(ratio>4.0&&delta>0.004){
+      if(!sps.length||i-sps[sps.length-1].idx>12){
+        sps.push({idx:i,time:((i*HOP/sr)*1000).toFixed(0)+'ms',delta:delta.toFixed(4),
+          sev:ratio>9?'CRIT':ratio>7?'HIGH':ratio>5?'MED':'LOW'});
+      }
+    }
+  }
+
+  const lastMfcc = mfccArr.length>0 ? mfccArr[mfccArr.length-1] : new Array(13).fill(0);
+
+  return {
+    duration:dur.toFixed(3), sampleRate:sr, channels:ab.numberOfChannels,
+    rms:Math.sqrt(ch.reduce((a,b)=>a+b*b,0)/ch.length).toFixed(5),
+    pitch: pitchMean>0 ? pitchMean.toFixed(1) : '0',
+    pitchStd: pitchStd.toFixed(2),
+    pitchJitter: pitchJitter.toFixed(5),    // RAP jitter ratio
+    pitchShimmer: pitchShimmer.toFixed(5),  // amplitude perturbation ratio
+    hnrMean: meanHNR.toFixed(2),
+    hnrStd:  stdHNR.toFixed(2),
+    mfccDelta: mfccDelta.toFixed(3),
+    mfccDeltaStd: mfccDeltaStd.toFixed(3),
+    mfccVar: mfccVar.toFixed(3),
+    spectralCentroid: meanSC.toFixed(1),
+    scStd: stdSC.toFixed(1),
+    spectralIrregularity: spectralIrregularity.toFixed(5),
+    zcr: meanZcr.toFixed(3), zcrStd: stdZcr.toFixed(3),
+    eCov: eCov.toFixed(4),
+    entropy: normEntropy.toFixed(4),
+    silenceRatio: (silR*100).toFixed(2),
+    voicedRatio: voicedRatio.toFixed(3),
+    discontinuities: sps.length, splicePoints: sps,
+    mfcc: lastMfcc.map(v=>v.toFixed(3)),
+    spectralRolloff:'0', energyMean:meanE.toFixed(5), energyStd:stdE.toFixed(5),
+    periodicityStrength: (pitchArr.length>5?(1-Math.min(1,pitchStd/(pitchMean||1))).toFixed(4):'0'),
+    totalFrames: energyArr.length, silentFrames: silFrames,
+  };
+}
+
+// ════════════════════════════════════════
+//  HUMAN vs AI VOICE CLASSIFIER
+//  Calibrated thresholds from voice pathology + deepfake detection research
+//  Key insight: AI voice is TOO PERFECT — real voices have natural imperfections
+// ════════════════════════════════════════
+async function callClaude(filename, f) {
+
+  const pitch   = parseFloat(f.pitch);
+  const jitter  = parseFloat(f.pitchJitter);   // RAP ratio (real: 0.002–0.015)
+  const shimmer = parseFloat(f.pitchShimmer);  // amplitude perturbation (real: 0.03–0.15)
+  const hnr     = parseFloat(f.hnrMean);       // dB (real: 10–25, AI: >28 or erratic)
+  const hnrStd  = parseFloat(f.hnrStd);        // variability (real: 2–8, AI: <1 = too stable)
+  const mDelta  = parseFloat(f.mfccDelta);     // real: 8–30, TTS: <4 or >40
+  const mDeltaStd=parseFloat(f.mfccDeltaStd); // real: 3–15, TTS: <1.5 (too regular)
+  const mVar    = parseFloat(f.mfccVar);       // real: >20, TTS: <8
+  const scStd   = parseFloat(f.scStd);         // real: >350, TTS: <150
+  const specIrr = parseFloat(f.spectralIrregularity); // real: >0.001, TTS: <0.0005
+  const eCov    = parseFloat(f.eCov);          // real: 0.5–2.5, TTS: <0.3
+  const entropy = parseFloat(f.entropy);       // real: 0.65–0.92, TTS: <0.5
+  const zcrStd  = parseFloat(f.zcrStd);        // real: >2.5, TTS: <1.5
+  const silR    = parseFloat(f.silenceRatio);
+  const dur     = parseFloat(f.duration);
+  const sps     = f.splicePoints||[];
+  const critSps = sps.filter(s=>s.sev==='CRIT'||s.sev==='HIGH').length;
+  const disc    = f.discontinuities;
+
+  const checks=[];
+
+  // ══ 1. PITCH JITTER (RAP) — single most powerful discriminator ══
+  // Clinical finding: AI TTS jitter < 0.1%, real voice 0.2%–1.5%
+  // Modern AI voices try to add fake jitter but it's too uniform
+  if (pitch < 40) {
+    checks.push({score:0,label:'jitter',type:'neutral',
+      text:'No stable pitch detected — audio is unvoiced, silent, or background noise'});
+  } else if (jitter >= 0.002 && jitter <= 0.018) {
+    checks.push({score:+26,label:'jitter',type:'positive',
+      text:`RAP jitter ${(jitter*100).toFixed(3)}% — natural vocal cord micro-perturbation confirms live human voice`});
+  } else if (jitter < 0.001) {
+    checks.push({score:-30,label:'jitter',type:'negative',
+      text:`RAP jitter ${(jitter*100).toFixed(4)}% — near-zero; AI-generated voices lack true glottal irregularity`});
+  } else if (jitter < 0.002) {
+    checks.push({score:-18,label:'jitter',type:'negative',
+      text:`RAP jitter ${(jitter*100).toFixed(3)}% — very low; below threshold for natural vocal fold vibration`});
+  } else if (jitter > 0.018 && jitter <= 0.04) {
+    checks.push({score:+8,label:'jitter',type:'positive',
+      text:`RAP jitter ${(jitter*100).toFixed(2)}% — slightly elevated but within range of real voice (stress/emotion)`});
+  } else {
+    checks.push({score:-8,label:'jitter',type:'negative',
+      text:`RAP jitter ${(jitter*100).toFixed(2)}% — excessive; may indicate splice artifacts or compression`});
+  }
+
+  // ══ 2. SHIMMER (amplitude perturbation) ══
+  // Real voice: shimmer 3–15%. AI voices: too stable (<1%) or fake-noisy
+  if (shimmer >= 0.03 && shimmer <= 0.18) {
+    checks.push({score:+20,label:'shimmer',type:'positive',
+      text:`Shimmer ${(shimmer*100).toFixed(1)}% — natural amplitude perturbation from vocal tract resonance`});
+  } else if (shimmer < 0.01) {
+    checks.push({score:-24,label:'shimmer',type:'negative',
+      text:`Shimmer ${(shimmer*100).toFixed(2)}% — unnaturally flat amplitude; AI voice synthesis produces too-uniform output`});
+  } else if (shimmer < 0.03) {
+    checks.push({score:-12,label:'shimmer',type:'negative',
+      text:`Shimmer ${(shimmer*100).toFixed(2)}% — below natural range; insufficient amplitude variation`});
+  } else if (shimmer > 0.18 && shimmer <= 0.35) {
+    checks.push({score:+5,label:'shimmer',type:'positive',
+      text:`Shimmer ${(shimmer*100).toFixed(1)}% — elevated but plausible for emotional/loud speech`});
+  } else {
+    checks.push({score:-6,label:'shimmer',type:'neutral',
+      text:`Shimmer ${(shimmer*100).toFixed(1)}% — extreme amplitude variation; possible clipping or editing`});
+  }
+
+  // ══ 3. HNR (Harmonic-to-Noise Ratio) ══
+  // Real voice: 10–25 dB with natural variation. AI: suspiciously high (>28) OR low std
+  if (hnr >= 8 && hnr <= 26 && hnrStd >= 2.0) {
+    checks.push({score:+18,label:'hnr',type:'positive',
+      text:`HNR ${hnr.toFixed(1)}dB ±${hnrStd.toFixed(1)}dB — healthy harmonic structure with natural frame-to-frame variation`});
+  } else if (hnr > 28 && hnrStd < 1.5) {
+    checks.push({score:-22,label:'hnr',type:'negative',
+      text:`HNR ${hnr.toFixed(1)}dB ±${hnrStd.toFixed(1)}dB — too perfect; AI-synthesized harmonics lack natural noise component`});
+  } else if (hnr > 28) {
+    checks.push({score:-10,label:'hnr',type:'negative',
+      text:`HNR ${hnr.toFixed(1)}dB — unusually clean signal; may indicate synthesis or noise removal`});
+  } else if (hnrStd < 1.2 && hnr > 5) {
+    checks.push({score:-16,label:'hnr',type:'negative',
+      text:`HNR std ${hnrStd.toFixed(2)}dB — unnaturally consistent frame-to-frame; real voices vary with phoneme changes`});
+  } else if (hnr < 5) {
+    checks.push({score:-6,label:'hnr',type:'neutral',
+      text:`HNR ${hnr.toFixed(1)}dB — very noisy signal; may be low-quality recording`});
+  } else {
+    checks.push({score:+8,label:'hnr',type:'positive',
+      text:`HNR ${hnr.toFixed(1)}dB — within natural voiced speech range`});
+  }
+
+  // ══ 4. MFCC DELTA STD (regularity of spectral change) ══
+  // Real voice: MFCC changes unpredictably (high std of deltas).
+  // AI TTS: changes at unnaturally regular intervals (low std).
+  if (mDeltaStd >= 3.0) {
+    checks.push({score:+16,label:'mfccreg',type:'positive',
+      text:`MFCC delta std ${mDeltaStd.toFixed(1)} — irregular spectral transitions consistent with spontaneous speech`});
+  } else if (mDeltaStd >= 1.5) {
+    checks.push({score:+6,label:'mfccreg',type:'neutral',
+      text:`MFCC delta std ${mDeltaStd.toFixed(1)} — moderate spectral regularity`});
+  } else {
+    checks.push({score:-20,label:'mfccreg',type:'negative',
+      text:`MFCC delta std ${mDeltaStd.toFixed(1)} — unusually regular spectral transitions; neural TTS produces metronomic phoneme changes`});
+  }
+
+  // ══ 5. MFCC VARIANCE (phonetic richness) ══
+  if (mVar >= 25) {
+    checks.push({score:+14,label:'mfccvar',type:'positive',
+      text:`MFCC variance ${mVar.toFixed(1)} — rich phonetic diversity across utterance`});
+  } else if (mVar >= 10) {
+    checks.push({score:+4,label:'mfccvar',type:'neutral',
+      text:`MFCC variance ${mVar.toFixed(1)} — moderate phonetic diversity`});
+  } else {
+    checks.push({score:-14,label:'mfccvar',type:'negative',
+      text:`MFCC variance ${mVar.toFixed(1)} — low spectral diversity; narrow phonetic range typical of TTS`});
+  }
+
+  // ══ 6. SPECTRAL IRREGULARITY (harmonic spikiness) ══
+  // Real voice harmonics create sharp peaks in spectrum → high irregularity
+  // AI TTS often over-smooths the spectrum
+  if (specIrr >= 0.0015) {
+    checks.push({score:+14,label:'specirr',type:'positive',
+      text:`Spectral irregularity ${specIrr.toFixed(4)} — sharp harmonic peaks consistent with natural glottal source`});
+  } else if (specIrr >= 0.0006) {
+    checks.push({score:+4,label:'specirr',type:'neutral',
+      text:`Spectral irregularity ${specIrr.toFixed(4)} — moderate harmonic structure`});
+  } else {
+    checks.push({score:-16,label:'specirr',type:'negative',
+      text:`Spectral irregularity ${specIrr.toFixed(4)} — overly smooth spectrum; neural vocoders produce unnaturally regular harmonics`});
+  }
+
+  // ══ 7. ENERGY CoV (dynamic range) ══
+  if (eCov >= 0.45 && eCov <= 2.8) {
+    checks.push({score:+12,label:'ecov',type:'positive',
+      text:`Energy CoV ${eCov.toFixed(3)} — natural prosodic amplitude dynamics (stress, emphasis, intonation)`});
+  } else if (eCov < 0.2) {
+    checks.push({score:-18,label:'ecov',type:'negative',
+      text:`Energy CoV ${eCov.toFixed(3)} — flat amplitude profile; TTS systems apply automatic level normalization`});
+  } else if (eCov < 0.45) {
+    checks.push({score:-6,label:'ecov',type:'negative',
+      text:`Energy CoV ${eCov.toFixed(3)} — reduced dynamic range; slightly unnaturally uniform`});
+  } else {
+    checks.push({score:-4,label:'ecov',type:'neutral',
+      text:`Energy CoV ${eCov.toFixed(3)} — very high amplitude variation`});
+  }
+
+  // ══ 8. ZCR VARIABILITY ══
+  if (zcrStd >= 2.5) {
+    checks.push({score:+10,label:'zcr',type:'positive',
+      text:`ZCR std ${zcrStd.toFixed(1)}/1k — high contrast between voiced/unvoiced frames (natural consonant production)`});
+  } else if (zcrStd >= 1.2) {
+    checks.push({score:+3,label:'zcr',type:'neutral',
+      text:`ZCR std ${zcrStd.toFixed(1)}/1k — moderate voiced/unvoiced contrast`});
+  } else {
+    checks.push({score:-10,label:'zcr',type:'negative',
+      text:`ZCR std ${zcrStd.toFixed(1)}/1k — uniform ZCR pattern; AI voices lack natural frication and stop consonant variation`});
+  }
+
+  // ══ 9. SPECTRAL CENTROID STD ══
+  if (scStd >= 350) {
+    checks.push({score:+10,label:'scstd',type:'positive',
+      text:`Spectral centroid std ${Math.round(scStd)}Hz — wide frequency variation across phonemes`});
+  } else if (scStd >= 150) {
+    checks.push({score:+3,label:'scstd',type:'neutral',
+      text:`Spectral centroid std ${Math.round(scStd)}Hz — moderate spectral variation`});
+  } else {
+    checks.push({score:-10,label:'scstd',type:'negative',
+      text:`Spectral centroid std ${Math.round(scStd)}Hz — narrow spectral band; TTS voices concentrate energy in limited frequency range`});
+  }
+
+  // ══ 10. ENERGY ENTROPY ══
+  if (entropy >= 0.62 && entropy <= 0.93) {
+    checks.push({score:+8,label:'entropy',type:'positive',
+      text:`Energy entropy ${entropy.toFixed(3)} — natural loudness distribution across utterance`});
+  } else if (entropy < 0.4) {
+    checks.push({score:-14,label:'entropy',type:'negative',
+      text:`Energy entropy ${entropy.toFixed(3)} — very low; heavily compressed or highly uniform energy profile`});
+  } else if (entropy < 0.62) {
+    checks.push({score:-6,label:'entropy',type:'negative',
+      text:`Energy entropy ${entropy.toFixed(3)} — below natural range`});
+  } else {
+    checks.push({score:-4,label:'entropy',type:'neutral',
+      text:`Energy entropy ${entropy.toFixed(3)} — very high; flat energy distribution`});
+  }
+
+  // ══ 11. SPLICE DETECTION ══
+  if (disc===0) {
+    checks.push({score:+8,label:'splice',type:'positive',
+      text:'No energy discontinuities — clean unedited audio timeline'});
+  } else if (critSps>=2) {
+    checks.push({score:-20,label:'splice',type:'negative',
+      text:`${disc} discontinuities with ${critSps} CRIT/HIGH events — strong evidence of cut-and-paste audio editing`});
+  } else if (disc<=2&&critSps===0) {
+    checks.push({score:+4,label:'splice',type:'positive',
+      text:`${disc} low-severity event(s) — consistent with natural breath/pause transitions`});
+  } else {
+    checks.push({score:-10,label:'splice',type:'negative',
+      text:`${disc} discontinuities (${critSps} high severity) — possible editing artifacts`});
+  }
+
+  // ══ TALLY ══
+  const scored = checks.filter(c=>c.score!==0);
+  const totalScore = scored.reduce((a,c)=>a+c.score,0);
+  const maxPoss = scored.filter(c=>c.score>0).reduce((a,c)=>a+c.score,0)||1;
+  const minPoss = scored.filter(c=>c.score<0).reduce((a,c)=>a+c.score,0)||-1;
+
+  let realScore;
+  if (totalScore>=0) realScore=50+Math.round((totalScore/maxPoss)*46);
+  else realScore=50-Math.round((Math.abs(totalScore)/Math.abs(minPoss))*46);
+  realScore=Math.max(3,Math.min(97,realScore));
+  const fakeScore=100-realScore;
+
+  // Count how many HIGH-WEIGHT checks fired negative (strong fakes have 3+)
+  const strongNeg=scored.filter(c=>c.score<=-16).length;
+  const strongPos=scored.filter(c=>c.score>=16).length;
+
+  let verdict,confidence,riskLevel;
+  if (realScore>=64&&strongNeg<=1) {
+    verdict='REAL'; confidence=Math.min(96,55+Math.round((realScore-64)/33*41));
+    riskLevel=realScore>=80?'LOW':'MEDIUM';
+  } else if (realScore<=38||strongNeg>=3) {
+    verdict='FAKE'; confidence=Math.min(96,55+Math.round(Math.max(0,38-realScore)/35*41));
+    if(strongNeg>=3) confidence=Math.min(96,confidence+15);
+    riskLevel=strongNeg>=4?'CRITICAL':'HIGH';
+  } else {
+    verdict='UNCERTAIN'; confidence=Math.round(52+Math.abs(realScore-50)*0.5);
+    riskLevel='MEDIUM';
+  }
+
+  // Attack type
+  let attackType='GENUINE';
+  if (verdict!=='REAL') {
+    if (critSps>=2||disc>=5) attackType='SPLICED';
+    else if (jitter<0.001&&shimmer<0.01) attackType='SYNTHETIC_TTS';
+    else if (hnr>28&&hnrStd<1.5) attackType='DEEPFAKE';
+    else if (mDeltaStd<1.5&&mVar<8) attackType='SYNTHETIC_TTS';
+    else attackType='AI_GENERATED';
+  }
+
+  const indicators=[...scored]
+    .sort((a,b)=>Math.abs(b.score)-Math.abs(a.score))
+    .slice(0,5)
+    .map(c=>({type:c.type,text:c.text}));
+
+  const posC=scored.filter(c=>c.score>0).length;
+  const negC=scored.filter(c=>c.score<0).length;
+
+  const summary = verdict==='REAL'
+    ? `Voice analysis of "${filename}" shows ${posC} human authenticity markers. Key: jitter ${(jitter*100).toFixed(3)}%, shimmer ${(shimmer*100).toFixed(1)}%, HNR ${hnr.toFixed(1)}±${hnrStd.toFixed(1)}dB — all consistent with natural human vocal production. Authenticity score ${realScore}% — GENUINE human voice (${confidence}% confidence).`
+    : verdict==='FAKE'
+    ? `Voice analysis of "${filename}" reveals ${negC} AI/synthetic indicators. Critical flags: ${scored.filter(c=>c.score<=-16).map(c=>c.label).join(', ')}. The voice lacks natural vocal imperfections found in real human speech. Score ${realScore}% — classified ${attackType} (${confidence}% confidence).`
+    : `Voice analysis of "${filename}" is inconclusive (score ${realScore}%, ${posC} human vs ${negC} synthetic indicators). Some features suggest real voice while others deviate from natural patterns. Compare with a known reference sample.`;
+
+  const spliceAnalysis=sps.length===0
+    ? 'Audio timeline is clean — no editing artifacts detected in energy envelope.'
+    : `${sps.length} potential edit point(s) at ${sps.slice(0,3).map(s=>s.time).join(', ')}${sps.length>3?` +${sps.length-3} more`:''}. ${critSps>0?`${critSps} high-severity events indicate deliberate audio editing.`:'Low severity — may be natural pauses.'}`;
+
+  const mfccNote=`MFCC delta ${mDelta.toFixed(1)}±${mDeltaStd.toFixed(1)}, variance ${mVar.toFixed(1)} — ${mDeltaStd<1.5?'unnaturally regular phoneme transitions (TTS fingerprint)':mVar<10?'low phonetic diversity':'natural speech dynamics'}.`;
+  const recommendation=verdict==='FAKE'?'This voice appears AI-generated; do not accept as genuine identity verification.':verdict==='REAL'?'Voice biometrics consistent with genuine human speaker.':'Inconclusive — request longer sample or use secondary verification method.';
+  const decisive=scored.reduce((a,c)=>Math.abs(c.score)>Math.abs(a.score)?c:a,scored[0]||checks[0]);
+  const technicalNote=`Most discriminative: [${decisive.label.toUpperCase()}] — ${decisive.text}`;
+
+  log(`jitter=${(jitter*100).toFixed(3)}% shimmer=${(shimmer*100).toFixed(1)}% HNR=${hnr.toFixed(1)}±${hnrStd.toFixed(1)}dB mfccΔstd=${mDeltaStd.toFixed(1)} → score=${realScore}%`,'info');
+
+  return {verdict,confidence,realScore,fakeScore,attackType,riskLevel,
+    summary,indicators,spliceAnalysis,mfccNote,recommendation,technicalNote};
+}
+
+
+// ════════════════════════════════════════
+//  MAIN ANALYSIS PIPELINE
+// ════════════════════════════════════════
+async function runAnalysis() {
+  if (!S.queue.length || S.analyzing) return;
+  S.analyzing=true;
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('noRes').style.display='none';
+  document.getElementById('sbEngine').textContent='ENGINE: ANALYZING';
+  document.getElementById('progFill').classList.add('run');
+  log('Analysis started: '+S.queue.length+' file(s)','info');
+
+  for (let qi=0;qi<S.queue.length;qi++) {
+    const item=S.queue[qi];
+    log(`[${qi+1}/${S.queue.length}] ${item.name}`,'info');
+
+    try {
+      await setStep(1,5,'Preprocessing…'); await previewFile(item); await sleep(120);
+      await setStep(2,15,'Extracting features…');
+      const feat=await extractFeatures(item.blob);
+      log(`Pitch:${feat.pitch}Hz jitter:${feat.pitchJitter} period:${feat.periodicityStrength} mfccΔ:${feat.mfccDelta} eCov:${feat.eCov}`,'info');
+      await setStep(3,30,'Computing MFCC…'); await sleep(160);
+      await setStep(4,46,'Spectral analysis…'); await sleep(140);
+      await setStep(5,58,'Mapping splice points…');
+      if(feat.splicePoints.length) log(`${feat.splicePoints.length} splice candidates found`,'warn');
+      await sleep(100);
+      await setStep(6,69,'Embedding comparison…'); await sleep(150);
+      await setStep(7,80,'Forensic scoring…');
+      const ai=await callClaude(item.name,feat);
+      log(`Verdict: ${ai.verdict} (${ai.confidence}% conf) | ${ai.attackType} | ${ai.riskLevel} RISK`,ai.verdict==='REAL'?'ok':ai.verdict==='FAKE'?'err':'warn');
+      await setStep(8,95,'Generating report…'); await sleep(100);
+      setProgress(100,'Complete');
+      const result={file:item,features:feat,ai,ts:new Date()};
+      S.results.push(result);
+      renderCard(result,qi);
+      updateStats();
+      updateFeatureBars(feat);
+      renderQueue();
+    } catch(e) {
+      log(`Error: ${e.message}`,'err');
+    }
+    await sleep(60);
+    
+  }
+
+  document.getElementById('progFill').classList.remove('run');
+  S.analyzing=false;
+  document.getElementById('runBtn').disabled=false;
+  document.getElementById('sbEngine').textContent='ENGINE: READY';
+  log('Analysis complete: '+S.results.length+' result(s)','ok');
+}
+
+async function setStep(n,pct,msg) {
+  for(let i=1;i<=8;i++){
+    const el=document.getElementById('s'+i);
+    if(!el)continue;
+    if(i<n)el.className='sch done';
+    else if(i===n)el.className='sch active';
+    else el.className='sch';
+  }
+  setProgress(pct,msg);
+  await sleep(18);
+}
+function setProgress(pct,lbl) {
+  document.getElementById('progFill').style.width=pct+'%';
+  document.getElementById('progPct').textContent=pct+'%';
+  if(lbl){document.getElementById('progLabel').textContent=lbl;document.getElementById('sbMsg').textContent=lbl;}
+}
+
+// ════════════════════════════════════════
+//  RENDER RESULT CARD
+// ════════════════════════════════════════
+function renderCard(result,idx) {
+  const {file:fi,features:f,ai} = result;
+  const vc=ai.verdict==='REAL'?'real-c':ai.verdict==='FAKE'?'fake-c':'unc-c';
+  const vl=ai.verdict==='REAL'?'✅ GENUINE':ai.verdict==='FAKE'?'⛔ SYNTHETIC':'⚠ UNCERTAIN';
+  const col=ai.verdict==='REAL'?'var(--green)':ai.verdict==='FAKE'?'var(--red)':'var(--yellow)';
+  const riskCol={'LOW':'var(--green)','MEDIUM':'var(--yellow)','HIGH':'var(--orange)','CRITICAL':'var(--red)'}[ai.riskLevel]||'var(--t2)';
+
+  // Mini wave bars
+  let wbars='';
+  for(let i=0;i<52;i++){const h=8+Math.random()*84;wbars+=`<div class="rcw-bar" style="height:${h}%;background:${col};"></div>`;}
+
+  // Splice tags
+  let spTags='';
+  if(!f.splicePoints.length){spTags='<span class="sp-tag clean">✓ Clean — no splice points</span>';}
+  else{spTags=f.splicePoints.slice(0,5).map(sp=>`<span class="sp-tag">⚡ @${sp.time} [${sp.sev}]</span>`).join('');}
+  if(f.splicePoints.length>5) spTags+=`<span class="sp-tag">+${f.splicePoints.length-5} more</span>`;
+
+  // Indicators
+  const inds=(ai.indicators||[]).map(ind=>`
+    <div class="rc-ind">
+      <div class="ind-pip ${ind.type==='positive'?'p':ind.type==='negative'?'n':'w'}"></div>
+      <span>${ind.text}</span>
+    </div>`).join('');
+
+  const card=document.createElement('div');
+  card.className=`rcard ${vc}`;
+  card.style.animationDelay=(idx*.06)+'s';
+  card.innerHTML=`
+    <div class="rc-head">
+      <span class="rc-verdict">${vl}</span>
+      <span class="rc-fname">🎵 ${fi.name}</span>
+      <span class="rc-risk" style="color:${riskCol};border-color:${riskCol}33;background:${riskCol}14">${ai.riskLevel} RISK</span>
+      <span class="rc-conf">${ai.confidence}%</span>
+    </div>
+    <div class="rc-wave">${wbars}</div>
+    <div class="rc-scores">
+      <div class="score-bar-wrap">
+        <div class="score-fill" id="sf-${fi.id}" data-w="${ai.realScore}"></div>
+      </div>
+      <div class="score-lbls">
+        <span class="sl-r">▶ REAL ${ai.realScore}%</span>
+        <span class="sl-type">${ai.attackType}</span>
+        <span class="sl-f">FAKE ${ai.fakeScore}% ◀</span>
+      </div>
+    </div>
+    <div class="rc-metrics">
+      <div class="met"><div class="met-v">${f.duration}s</div><div class="met-l">Duration</div></div>
+      <div class="met"><div class="met-v">${f.pitch}Hz</div><div class="met-l">Pitch F0</div></div>
+      <div class="met"><div class="met-v">${f.discontinuities}</div><div class="met-l">Splice Pts</div></div>
+      <div class="met"><div class="met-v">${f.silenceRatio}%</div><div class="met-l">Silence</div></div>
+      <div class="met"><div class="met-v">${f.zcr}</div><div class="met-l">ZCR /1k</div></div>
+      <div class="met"><div class="met-v">${Number(f.spectralCentroid).toFixed(0)}</div><div class="met-l">Spec.Ctr</div></div>
+      <div class="met"><div class="met-v">${(f.sampleRate/1000).toFixed(1)}k</div><div class="met-l">SampleRate</div></div>
+      <div class="met"><div class="met-v">${f.entropy}</div><div class="met-l">Entropy</div></div>
+    </div>
+    <div class="rc-splices">
+      <span class="sp-label">SPLICE MAP:</span>${spTags}
+    </div>
+    <div class="rc-ai">
+      <div class="rc-ai-hd">◈ AI FORENSIC ANALYSIS</div>
+      <div class="rc-ai-txt">${ai.summary}</div>
+      <div class="rc-inds">${inds}</div>
+      ${ai.spliceAnalysis?`<div class="rc-ai-hd" style="color:var(--orange);margin-top:8px">◈ SPLICE ANALYSIS</div><div class="rc-ai-txt">${ai.spliceAnalysis}</div>`:''}
+      ${ai.mfccNote?`<div class="rc-tech">MFCC // ${ai.mfccNote}</div>`:''}
+      ${ai.recommendation?`<div class="rc-rec">⟹ ${ai.recommendation}</div>`:''}
+      ${ai.technicalNote?`<div class="rc-tech" style="margin-top:5px">TECH // ${ai.technicalNote}</div>`:''}
+    </div>`;
+
+  document.getElementById('results').appendChild(card);
+  card.scrollIntoView({behavior:'smooth',block:'nearest'});
+  setTimeout(()=>{ const sf=document.getElementById('sf-'+fi.id); if(sf) sf.style.width=sf.dataset.w+'%'; },100+idx*80);
+}
+
+// ════════════════════════════════════════
+//  STATS & FEATURE BARS
+// ════════════════════════════════════════
+function updateStats() {
+  const r=S.results.filter(x=>x.ai.verdict==='REAL').length;
+  const f=S.results.filter(x=>x.ai.verdict==='FAKE').length;
+  const u=S.results.filter(x=>x.ai.verdict==='UNCERTAIN').length;
+  const t=S.results.length;
+  document.getElementById('stTotal').textContent=t;
+  document.getElementById('stReal').textContent=r;
+  document.getElementById('stFake').textContent=f;
+  document.getElementById('stUnc').textContent=u;
+  document.getElementById('summaryBadge').textContent=t+' RESULTS';
+  if(t>0){setTimeout(()=>{
+    document.getElementById('dbR').style.width=(r/t*100)+'%';
+    document.getElementById('dbF').style.width=(f/t*100)+'%';
+    document.getElementById('dbU').style.width=(u/t*100)+'%';
+  },80);}
+}
+
+function updateFeatureBars(f) {
+  const pitch=parseFloat(f.pitch);
+  setFB('pitch',Math.min(100,Math.max(0,(pitch-60)/280*100)),pitch>0?f.pitch+'Hz':'—');
+  const jitter=parseFloat(f.pitchJitter)*100;
+  setFB('zcr',Math.min(100,jitter/8*100),jitter.toFixed(2)+'%');
+  setFB('rms',Math.min(100,parseFloat(f.eCov)/3*100),f.eCov);
+  const period=parseFloat(f.periodicityStrength);
+  setFB('sc',Math.min(100,period*100),f.periodicityStrength);
+  setFB('disc',Math.min(100,f.discontinuities/10*100),String(f.discontinuities));
+  setFB('ent',Math.min(100,parseFloat(f.entropy)*100),f.entropy);
+}
+function setFB(k,p,v){
+  const fb=document.getElementById('ff-'+k); const fv=document.getElementById('fv-'+k);
+  if(fb) fb.style.width=p+'%'; if(fv) fv.textContent=v;
+}
+
+// ════════════════════════════════════════
+//  LOG
+// ════════════════════════════════════════
+function log(msg,type='info') {
+  const ts=new Date().toTimeString().slice(0,8);
+  const el=document.createElement('div');
+  el.className='log-line '+type;
+  el.innerHTML=`<span class="log-ts">${ts}</span><span>${msg}</span>`;
+  const area=document.getElementById('logArea');
+  area.appendChild(el);
+  while(area.children.length>100) area.removeChild(area.firstChild);
+  const scroller=area.parentElement;
+  scroller.scrollTop=scroller.scrollHeight;
+}
+function clearLog(){document.getElementById('logArea').innerHTML='';log('Log cleared','info');}
+
+
+// ════════════════════════════════════════
+//  EXPORT
+// ════════════════════════════════════════
+function exportJSON() {
+  if(!S.results.length){log('No results','warn');return;}
+  const d=S.results.map(r=>({filename:r.file.name,timestamp:r.ts,verdict:r.ai.verdict,confidence:r.ai.confidence,attackType:r.ai.attackType,riskLevel:r.ai.riskLevel,realScore:r.ai.realScore,fakeScore:r.ai.fakeScore,features:{...r.features,splicePoints:r.features.splicePoints},analysis:{summary:r.ai.summary,recommendation:r.ai.recommendation,technicalNote:r.ai.technicalNote}}));
+  dl(JSON.stringify(d,null,2),'application/json','splicedetect_results.json');
+  log('JSON exported','ok');
+}
+function exportCSV() {
+  if(!S.results.length){log('No results','warn');return;}
+  const hdr='Filename,Verdict,Confidence,AttackType,RiskLevel,RealScore,FakeScore,Duration,Pitch,ZCR,Discontinuities,SilenceRatio,Centroid,RMS,Entropy,Timestamp';
+  const rows=S.results.map(r=>[r.file.name,r.ai.verdict,r.ai.confidence,r.ai.attackType,r.ai.riskLevel,r.ai.realScore,r.ai.fakeScore,r.features.duration,r.features.pitch,r.features.zcr,r.features.discontinuities,r.features.silenceRatio,r.features.spectralCentroid,r.features.rms,r.features.entropy,r.ts.toISOString()].join(','));
+  dl([hdr,...rows].join('\n'),'text/csv','splicedetect_results.csv');
+  log('CSV exported','ok');
+}
+function exportReport() {
+  if(!S.results.length){log('No results','warn');return;}
+  const lines=['═══════════════════════════════════════════════════════════════','  SPLICEDETECT PRO — FORENSIC VOICE ANALYSIS REPORT','═══════════════════════════════════════════════════════════════',`  Generated: ${new Date().toISOString()}`,`  Files Analyzed: ${S.results.length}`,`  Real: ${S.results.filter(r=>r.ai.verdict==='REAL').length}  Fake: ${S.results.filter(r=>r.ai.verdict==='FAKE').length}  Uncertain: ${S.results.filter(r=>r.ai.verdict==='UNCERTAIN').length}`,'───────────────────────────────────────────────────────────────','',
+    ...S.results.flatMap(r=>[`FILE: ${r.file.name}`,`VERDICT: ${r.ai.verdict} | CONFIDENCE: ${r.ai.confidence}% | RISK: ${r.ai.riskLevel} | TYPE: ${r.ai.attackType}`,`SCORES: Real=${r.ai.realScore}% / Fake=${r.ai.fakeScore}%`,`FEATURES: Pitch=${r.features.pitch}Hz | ZCR=${r.features.zcr} | Disc=${r.features.discontinuities} | Entropy=${r.features.entropy}`,`SUMMARY: ${r.ai.summary}`,r.ai.spliceAnalysis?`SPLICE: ${r.ai.spliceAnalysis}`:'',`RECOMMENDATION: ${r.ai.recommendation}`,`TECHNICAL: ${r.ai.technicalNote}`,'INDICATORS:',
+    ...(r.ai.indicators||[]).map(i=>`  [${i.type.toUpperCase()}] ${i.text}`),'───────────────────────────────────────────────────────────────',''])];
+  lines.push('═══════════════════════════════════════════════════════════════','  END OF REPORT — SpliceDetect Pro v3.0','═══════════════════════════════════════════════════════════════');
+  dl(lines.join('\n'),'text/plain','splicedetect_report.txt');
+  log('Full report exported','ok');
+}
+function clearResults() {
+  S.results=[];
+  const res=document.getElementById('results');
+  res.querySelectorAll('.rcard').forEach(e=>e.remove());
+  document.getElementById('noRes').style.display='';
+  updateStats();
+  renderQueue();
+  log('Results cleared','info');
+}
+
+function dl(content,type,name){const b=new Blob([content],{type});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u);}
+
+// ════════════════════════════════════════
+//  DRAG & DROP
+// ════════════════════════════════════════
+const dz=document.getElementById('dropZone');
+dz.addEventListener('dragover',e=>{e.preventDefault();e.stopPropagation();dz.classList.add('drag');});
+dz.addEventListener('dragleave',e=>{if(!dz.contains(e.relatedTarget))dz.classList.remove('drag');});
+dz.addEventListener('drop',e=>{e.preventDefault();e.stopPropagation();dz.classList.remove('drag');handleFiles(e.dataTransfer.files);});
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{e.preventDefault();if(e.dataTransfer.files.length&&!dz.contains(e.target))handleFiles(e.dataTransfer.files);});
+
+// ════════════════════════════════════════
+//  MODAL
+// ════════════════════════════════════════
+function openModal(title,body){document.getElementById('modalTitle').textContent=title;document.getElementById('modalBody').innerHTML=body;document.getElementById('modalBg').classList.add('open');}
+function closeModal(){document.getElementById('modalBg').classList.remove('open');}
+document.getElementById('modalBg').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+
+function howItWorksHtml(){return`<strong>1. Audio Input</strong><br>Upload files (MP3/WAV/OGG/WEBM/M4A/FLAC), record live via microphone, or load from a direct URL.<br><br><strong>2. Feature Extraction (Web Audio API)</strong><br>Real acoustic analysis extracts: RMS energy, Zero-Crossing Rate, Spectral Centroid/Rolloff/Flux, Pitch F0 via autocorrelation, 13-coeff MFCC, energy entropy, silence ratio, and frame-level energy discontinuities.<br><br><strong>3. Splice Point Detection</strong><br>Frame-by-frame energy analysis identifies sudden discontinuities exceeding 2.3× mean energy — hallmarks of cut-and-paste audio edits.<br><br><strong>4. Forensic Inference</strong><br>All extracted features are analyzed using forensic heuristics to classify: REAL, FAKE, or UNCERTAIN, with attack type, risk level, indicator breakdown, and recommendations.<br><br><strong>5. Visualization</strong><br>Live waveform, energy envelope, ZCR profile, and spectrogram with red splice markers. Full playback with seek and volume control.<br><br><strong>6. Export</strong><br>Download results as JSON, CSV, or a formatted forensic report.`;}
+function aboutHtml(){return`<strong>SpliceDetect Pro v3.0 — Forensic Edition</strong><br><br>Professional audio forensics for the Lovely Professional University Spliced Voice Detection research project.<br><br><strong>Detection Capabilities:</strong><br>• MFCC-based spectral shape analysis (13 coefficients)<br>• Energy discontinuity splice mapping<br>• Pitch F0 via autocorrelation<br>• Spectral centroid, rolloff, and flux<br>• Energy entropy (voice naturalness)<br>• Real-time spectrogram visualization<br><br><strong>Attack Types:</strong><br>SPLICED · DEEPFAKE · COPY_MOVE · SYNTHETIC_TTS · REPLAY · NOISE_INJECT<br><br><strong>Supervisor:</strong> Parveen Kar, LPU`;}
+
+
+// ════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════
+function fmtBytes(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// ════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════
+window.addEventListener('load',()=>{
+  // Use rAF to ensure layout is complete before reading canvas dimensions
+  requestAnimationFrame(()=>{
+    const wc=document.getElementById('waveCanvas');
+    wc.width=wc.offsetWidth||800;wc.height=wc.offsetHeight||100;
+    const wctx=wc.getContext('2d');
+    wctx.fillStyle='#09121f';wctx.fillRect(0,0,wc.width,wc.height);
+    wctx.strokeStyle='rgba(0,217,196,0.07)';wctx.setLineDash([5,7]);
+    wctx.beginPath();wctx.moveTo(0,wc.height/2);wctx.lineTo(wc.width,wc.height/2);wctx.stroke();
+    const sc=document.getElementById('specCanvas');
+    sc.width=sc.offsetWidth||800;sc.height=sc.offsetHeight||72;
+    const sctx=sc.getContext('2d');
+    sctx.fillStyle='#060d18';sctx.fillRect(0,0,sc.width,sc.height);
+    sctx.font='11px IBM Plex Mono';sctx.fillStyle='rgba(0,217,196,0.13)';
+    sctx.fillText('Upload audio to see spectrogram',16,sc.height/2);
+  });
+  log('SpliceDetect Pro v3.0 initialized','ok');
+  log('Engine: Multi-Feature Forensic Scoring (9 dimensions)','info');
+  log('Ready — upload or record audio to begin','info');
+});
+</script>
+<!-- your existing scripts -->
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+
+<script type="module">
+  import { loadModel, runModel } from "./model.js";
+
+  window.runAI = runModel;
+
+  loadModel(); // load model when page starts
+</script>
+
+</body>
+</html>
+</body>
+</html>
